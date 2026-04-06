@@ -27,13 +27,14 @@ export interface Slot {
   status: "available" | "booked";
   candidate_name: string;
   candidate_email: string;
+  candidate_telegram: string;
 }
 
 export async function getSlots(): Promise<Slot[]> {
   const sheets = getSheets();
   const res = await sheets.spreadsheets.values.get({
     spreadsheetId: SPREADSHEET_ID,
-    range: `${SHEET_NAME}!A2:I`,
+    range: `${SHEET_NAME}!A2:J`,
   });
 
   const rows = res.data.values || [];
@@ -47,16 +48,17 @@ export async function getSlots(): Promise<Slot[]> {
     status: (row[6] || "available") as "available" | "booked",
     candidate_name: row[7] || "",
     candidate_email: row[8] || "",
+    candidate_telegram: row[9] || "",
   }));
 }
 
-export async function addSlot(slot: Omit<Slot, "id" | "status" | "candidate_name" | "candidate_email">) {
+export async function addSlot(slot: Omit<Slot, "id" | "status" | "candidate_name" | "candidate_email" | "candidate_telegram">) {
   const sheets = getSheets();
   const id = Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
 
   await sheets.spreadsheets.values.append({
     spreadsheetId: SPREADSHEET_ID,
-    range: `${SHEET_NAME}!A:I`,
+    range: `${SHEET_NAME}!A:J`,
     valueInputOption: "RAW",
     requestBody: {
       values: [[
@@ -69,6 +71,7 @@ export async function addSlot(slot: Omit<Slot, "id" | "status" | "candidate_name
         "available",
         "",
         "",
+        "",
       ]],
     },
   });
@@ -76,11 +79,11 @@ export async function addSlot(slot: Omit<Slot, "id" | "status" | "candidate_name
   return id;
 }
 
-export async function bookSlot(slotId: string, candidateName: string, candidateEmail: string): Promise<boolean> {
+export async function bookSlot(slotId: string, candidateName: string, candidateEmail: string, candidateTelegram: string): Promise<boolean> {
   const sheets = getSheets();
   const res = await sheets.spreadsheets.values.get({
     spreadsheetId: SPREADSHEET_ID,
-    range: `${SHEET_NAME}!A2:I`,
+    range: `${SHEET_NAME}!A2:J`,
   });
 
   const rows = res.data.values || [];
@@ -94,10 +97,10 @@ export async function bookSlot(slotId: string, candidateName: string, candidateE
   const sheetRow = rowIndex + 2;
   await sheets.spreadsheets.values.update({
     spreadsheetId: SPREADSHEET_ID,
-    range: `${SHEET_NAME}!G${sheetRow}:I${sheetRow}`,
+    range: `${SHEET_NAME}!G${sheetRow}:J${sheetRow}`,
     valueInputOption: "RAW",
     requestBody: {
-      values: [["booked", candidateName, candidateEmail]],
+      values: [["booked", candidateName, candidateEmail, candidateTelegram]],
     },
   });
 
@@ -119,10 +122,10 @@ export async function deleteSlot(slotId: string): Promise<boolean> {
   const sheetRow = rowIndex + 2;
   await sheets.spreadsheets.values.update({
     spreadsheetId: SPREADSHEET_ID,
-    range: `${SHEET_NAME}!A${sheetRow}:I${sheetRow}`,
+    range: `${SHEET_NAME}!A${sheetRow}:J${sheetRow}`,
     valueInputOption: "RAW",
     requestBody: {
-      values: [["", "", "", "", "", "", "", "", ""]],
+      values: [["", "", "", "", "", "", "", "", "", ""]],
     },
   });
 

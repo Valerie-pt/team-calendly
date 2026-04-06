@@ -13,6 +13,7 @@ interface BookingModalProps {
 export default function BookingModal({ slot, zoomLink, onClose, onBooked }: BookingModalProps) {
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
+  const [telegram, setTelegram] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
@@ -30,6 +31,7 @@ export default function BookingModal({ slot, zoomLink, onClose, onBooked }: Book
           slotId: slot.id,
           candidate_name: name,
           candidate_email: email,
+          candidate_telegram: telegram,
         }),
       });
 
@@ -45,6 +47,7 @@ export default function BookingModal({ slot, zoomLink, onClose, onBooked }: Book
           candidate_email: email,
           interviewer_name: slot.interviewer_name,
           interviewer_email: slot.interviewer_email,
+          candidate_telegram: telegram,
           date: slot.date,
           time: slot.time,
           duration_minutes: slot.duration_minutes,
@@ -95,6 +98,17 @@ export default function BookingModal({ slot, zoomLink, onClose, onBooked }: Book
               onChange={(e) => setEmail(e.target.value)}
               className="w-full px-4 py-2.5 bg-card-bg border border-border rounded-xl focus:ring-2 focus:ring-accent focus:border-transparent outline-none text-foreground placeholder:text-text-secondary"
               placeholder="ivan@example.com"
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-foreground mb-1.5">Telegram</label>
+            <input
+              type="text"
+              value={telegram}
+              onChange={(e) => setTelegram(e.target.value)}
+              className="w-full px-4 py-2.5 bg-card-bg border border-border rounded-xl focus:ring-2 focus:ring-accent focus:border-transparent outline-none text-foreground placeholder:text-text-secondary"
+              placeholder="@username"
             />
           </div>
 

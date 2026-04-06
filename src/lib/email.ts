@@ -9,6 +9,7 @@ const PUBLIC_KEY = process.env.NEXT_PUBLIC_EMAILJS_PUBLIC_KEY || "";
 export async function sendBookingEmails(params: {
   candidate_name: string;
   candidate_email: string;
+  candidate_telegram: string;
   interviewer_name: string;
   interviewer_email: string;
   date: string;
@@ -34,6 +35,7 @@ export async function sendBookingEmails(params: {
   const templateParams = {
     candidate_name: params.candidate_name,
     candidate_email: params.candidate_email,
+    candidate_telegram: params.candidate_telegram,
     interviewer_name: params.interviewer_name,
     interviewer_email: params.interviewer_email,
     date: params.date,

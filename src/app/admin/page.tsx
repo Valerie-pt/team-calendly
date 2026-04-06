@@ -218,6 +218,7 @@ export default function AdminPage() {
                       </p>
                       <p className="text-sm text-text-secondary">
                         {slot.interviewer_name} &rarr; {slot.candidate_name} ({slot.candidate_email})
+                        {slot.candidate_telegram && <span className="ml-1">TG: {slot.candidate_telegram}</span>}
                       </p>
                     </div>
                   ))}

@@ -34,11 +34,11 @@ export async function POST(request: NextRequest) {
     }
 
     if (action === "book") {
-      const { slotId, candidate_name, candidate_email } = body;
+      const { slotId, candidate_name, candidate_email, candidate_telegram } = body;
       if (!slotId || !candidate_name || !candidate_email) {
         return Response.json({ error: "Missing required fields" }, { status: 400 });
       }
-      const success = await bookSlot(slotId, candidate_name, candidate_email);
+      const success = await bookSlot(slotId, candidate_name, candidate_email, candidate_telegram || "");
       if (!success) {
         return Response.json({ error: "Slot is no longer available" }, { status: 409 });
       }
