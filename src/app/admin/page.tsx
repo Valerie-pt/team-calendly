@@ -78,41 +78,42 @@ export default function AdminPage() {
     <main className="min-h-screen bg-white">
       <div className="max-w-3xl mx-auto px-4 py-14 sm:py-20">
         <h1 className="text-3xl sm:text-4xl font-display font-bold text-foreground mb-10">
-          Admin Panel
+          Панель управления
         </h1>
 
         {/* Add slot form */}
         <section className="bg-card-bg rounded-2xl p-6 sm:p-8 mb-10">
-          <h2 className="text-lg font-semibold text-foreground mb-5">Add Available Slot</h2>
+          <h2 className="text-lg font-semibold text-foreground mb-1">Добавить слот</h2>
+          <p className="text-sm text-text-secondary mb-5">Время указывается по Москве (MSK, UTC+3)</p>
           <form onSubmit={handleAdd} className="space-y-4">
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
-                <label className="block text-sm font-medium text-foreground mb-1.5">Your Name</label>
+                <label className="block text-sm font-medium text-foreground mb-1.5">Ваше имя</label>
                 <input
                   type="text"
                   required
                   value={name}
                   onChange={(e) => setName(e.target.value)}
                   className="w-full px-4 py-2.5 bg-white border border-border rounded-xl focus:ring-2 focus:ring-accent focus:border-transparent outline-none text-foreground"
-                  placeholder="Jane Smith"
+                  placeholder="Анна Смирнова"
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-foreground mb-1.5">Your Email</label>
+                <label className="block text-sm font-medium text-foreground mb-1.5">Ваш email</label>
                 <input
                   type="email"
                   required
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   className="w-full px-4 py-2.5 bg-white border border-border rounded-xl focus:ring-2 focus:ring-accent focus:border-transparent outline-none text-foreground"
-                  placeholder="jane@company.com"
+                  placeholder="anna@company.com"
                 />
               </div>
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
               <div>
-                <label className="block text-sm font-medium text-foreground mb-1.5">Date</label>
+                <label className="block text-sm font-medium text-foreground mb-1.5">Дата</label>
                 <input
                   type="date"
                   required
@@ -122,7 +123,7 @@ export default function AdminPage() {
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-foreground mb-1.5">Time</label>
+                <label className="block text-sm font-medium text-foreground mb-1.5">Время</label>
                 <input
                   type="time"
                   required
@@ -132,17 +133,17 @@ export default function AdminPage() {
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-foreground mb-1.5">Duration (min)</label>
+                <label className="block text-sm font-medium text-foreground mb-1.5">Длительность</label>
                 <select
                   value={duration}
                   onChange={(e) => setDuration(e.target.value)}
                   className="w-full px-4 py-2.5 bg-white border border-border rounded-xl focus:ring-2 focus:ring-accent focus:border-transparent outline-none text-foreground"
                 >
-                  <option value="15">15 min</option>
-                  <option value="30">30 min</option>
-                  <option value="45">45 min</option>
-                  <option value="60">60 min</option>
-                  <option value="90">90 min</option>
+                  <option value="15">15 мин</option>
+                  <option value="30">30 мин</option>
+                  <option value="45">45 мин</option>
+                  <option value="60">60 мин</option>
+                  <option value="90">90 мин</option>
                 </select>
               </div>
             </div>
@@ -152,7 +153,7 @@ export default function AdminPage() {
               disabled={submitting}
               className="px-6 py-2.5 bg-accent text-white rounded-full font-medium hover:bg-accent-hover disabled:opacity-50 transition-colors"
             >
-              {submitting ? "Adding..." : "Add Slot"}
+              {submitting ? "Добавляю..." : "Добавить слот"}
             </button>
           </form>
         </section>
@@ -167,11 +168,11 @@ export default function AdminPage() {
             {/* Available slots */}
             <section className="mb-10">
               <h2 className="text-lg font-semibold text-foreground mb-4">
-                Available Slots
+                Свободные слоты
                 <span className="text-text-secondary font-normal ml-2">({available.length})</span>
               </h2>
               {available.length === 0 ? (
-                <p className="text-text-secondary bg-card-bg rounded-2xl p-6 text-center">No available slots</p>
+                <p className="text-text-secondary bg-card-bg rounded-2xl p-6 text-center">Нет свободных слотов</p>
               ) : (
                 <div className="space-y-2">
                   {available.map((slot) => (
@@ -182,7 +183,7 @@ export default function AdminPage() {
                       <div>
                         <p className="font-medium text-foreground">
                           {slot.date} &middot; {slot.time}
-                          <span className="text-text-secondary font-normal ml-2">{slot.duration_minutes} min</span>
+                          <span className="text-text-secondary font-normal ml-2">{slot.duration_minutes} мин</span>
                         </p>
                         <p className="text-sm text-text-secondary">{slot.interviewer_name} ({slot.interviewer_email})</p>
                       </div>
@@ -190,7 +191,7 @@ export default function AdminPage() {
                         onClick={() => handleDelete(slot.id)}
                         className="px-4 py-1.5 text-sm text-red-600 bg-white rounded-full hover:bg-red-50 transition-colors"
                       >
-                        Delete
+                        Удалить
                       </button>
                     </div>
                   ))}
@@ -202,7 +203,7 @@ export default function AdminPage() {
             {booked.length > 0 && (
               <section>
                 <h2 className="text-lg font-semibold text-foreground mb-4">
-                  Booked Slots
+                  Забронированные
                   <span className="text-text-secondary font-normal ml-2">({booked.length})</span>
                 </h2>
                 <div className="space-y-2">
@@ -213,7 +214,7 @@ export default function AdminPage() {
                     >
                       <p className="font-medium text-foreground">
                         {slot.date} &middot; {slot.time}
-                        <span className="text-text-secondary font-normal ml-2">{slot.duration_minutes} min</span>
+                        <span className="text-text-secondary font-normal ml-2">{slot.duration_minutes} мин</span>
                       </p>
                       <p className="text-sm text-text-secondary">
                         {slot.interviewer_name} &rarr; {slot.candidate_name} ({slot.candidate_email})

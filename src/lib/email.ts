@@ -1,4 +1,5 @@
 import emailjs from "emailjs-com";
+import { generateGoogleCalendarUrl } from "@/lib/calendar";
 
 const SERVICE_ID = process.env.NEXT_PUBLIC_EMAILJS_SERVICE_ID || "";
 const CANDIDATE_TEMPLATE_ID = process.env.NEXT_PUBLIC_EMAILJS_CANDIDATE_TEMPLATE_ID || "";
@@ -20,15 +21,26 @@ export async function sendBookingEmails(params: {
     return;
   }
 
+  const eventTitle = `Interview: ${params.candidate_name} & ${params.interviewer_name}`;
+  const googleCalendarUrl = generateGoogleCalendarUrl({
+    title: eventTitle,
+    date: params.date,
+    time: params.time,
+    duration_minutes: params.duration_minutes,
+    description: `Interview meeting\nZoom: ${params.zoom_link}`,
+    location: params.zoom_link,
+  });
+
   const templateParams = {
     candidate_name: params.candidate_name,
     candidate_email: params.candidate_email,
     interviewer_name: params.interviewer_name,
     interviewer_email: params.interviewer_email,
     date: params.date,
-    time: params.time,
+    time: `${params.time} MSK`,
     duration: `${params.duration_minutes} min`,
     zoom_link: params.zoom_link,
+    google_calendar_url: googleCalendarUrl,
   };
 
   const promises: Promise<unknown>[] = [];

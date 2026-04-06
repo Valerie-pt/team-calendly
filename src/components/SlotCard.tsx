@@ -26,8 +26,8 @@ export default function SlotCard({ slot, onClick }: SlotCardProps) {
           </div>
           <div>
             <p className="font-semibold text-foreground">
-              {slot.time}
-              <span className="text-text-secondary font-normal ml-2">{slot.duration_minutes} min</span>
+              {slot.time} <span className="text-xs text-text-secondary font-normal">MSK</span>
+              <span className="text-text-secondary font-normal ml-2">{slot.duration_minutes} мин</span>
             </p>
             <p className="text-sm text-text-secondary mt-0.5">
               {slot.interviewer_name} &middot; {day} {month}
@@ -35,7 +35,7 @@ export default function SlotCard({ slot, onClick }: SlotCardProps) {
           </div>
         </div>
         <span className="inline-flex items-center px-4 py-2 text-sm font-medium text-foreground bg-white rounded-full shadow-sm group-hover:bg-accent group-hover:text-white transition-colors">
-          Book
+          Записаться
         </span>
       </div>
     </button>

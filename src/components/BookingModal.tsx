@@ -7,7 +7,7 @@ interface BookingModalProps {
   slot: Slot;
   zoomLink: string;
   onClose: () => void;
-  onBooked: () => void;
+  onBooked: (candidateName: string) => void;
 }
 
 export default function BookingModal({ slot, zoomLink, onClose, onBooked }: BookingModalProps) {
@@ -54,7 +54,7 @@ export default function BookingModal({ slot, zoomLink, onClose, onBooked }: Book
         // Email is best-effort
       }
 
-      onBooked();
+      onBooked(name);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Something went wrong");
     } finally {
@@ -68,33 +68,33 @@ export default function BookingModal({ slot, zoomLink, onClose, onBooked }: Book
         className="bg-white rounded-2xl shadow-xl max-w-md w-full p-8"
         onClick={(e) => e.stopPropagation()}
       >
-        <h2 className="text-xl font-display font-bold text-foreground mb-1">Book this slot</h2>
+        <h2 className="text-xl font-display font-bold text-foreground mb-1">Забронировать слот</h2>
         <p className="text-sm text-text-secondary mb-6">
-          {slot.date}, {slot.time} ({slot.duration_minutes} min) &middot; {slot.interviewer_name}
+          {slot.date}, {slot.time} MSK ({slot.duration_minutes} мин) &middot; {slot.interviewer_name}
         </p>
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
-            <label className="block text-sm font-medium text-foreground mb-1.5">Your name</label>
+            <label className="block text-sm font-medium text-foreground mb-1.5">Ваше имя</label>
             <input
               type="text"
               required
               value={name}
               onChange={(e) => setName(e.target.value)}
               className="w-full px-4 py-2.5 bg-card-bg border border-border rounded-xl focus:ring-2 focus:ring-accent focus:border-transparent outline-none text-foreground placeholder:text-text-secondary"
-              placeholder="John Doe"
+              placeholder="Иван Иванов"
             />
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-foreground mb-1.5">Your email</label>
+            <label className="block text-sm font-medium text-foreground mb-1.5">Ваш email</label>
             <input
               type="email"
               required
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               className="w-full px-4 py-2.5 bg-card-bg border border-border rounded-xl focus:ring-2 focus:ring-accent focus:border-transparent outline-none text-foreground placeholder:text-text-secondary"
-              placeholder="john@example.com"
+              placeholder="ivan@example.com"
             />
           </div>
 
@@ -108,14 +108,14 @@ export default function BookingModal({ slot, zoomLink, onClose, onBooked }: Book
               onClick={onClose}
               className="flex-1 px-4 py-2.5 bg-card-bg text-foreground rounded-full font-medium hover:bg-border transition-colors"
             >
-              Cancel
+              Отмена
             </button>
             <button
               type="submit"
               disabled={loading}
               className="flex-1 px-4 py-2.5 bg-accent text-white rounded-full font-medium hover:bg-accent-hover disabled:opacity-50 transition-colors"
             >
-              {loading ? "Booking..." : "Confirm"}
+              {loading ? "Бронирую..." : "Подтвердить"}
             </button>
           </div>
         </form>
