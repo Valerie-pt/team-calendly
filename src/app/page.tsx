@@ -1,65 +1,109 @@
-import Image from "next/image";
+"use client";
 
-export default function Home() {
-  return (
-    <div className="flex flex-col flex-1 items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex flex-1 w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the page.tsx file.
-          </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
+import { useEffect, useState } from "react";
+import type { Slot } from "@/lib/sheets";
+import SlotCard from "@/components/SlotCard";
+import BookingModal from "@/components/BookingModal";
+
+const ZOOM_LINK = process.env.NEXT_PUBLIC_ZOOM_LINK || "https://zoom.us/j/your-meeting-id";
+
+export default function CandidatePage() {
+  const [slots, setSlots] = useState<Slot[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [selectedSlot, setSelectedSlot] = useState<Slot | null>(null);
+  const [booked, setBooked] = useState(false);
+
+  async function fetchSlots() {
+    setLoading(true);
+    try {
+      const res = await fetch("/api/slots");
+      const data: Slot[] = await res.json();
+      const available = data
+        .filter((s) => s.status === "available" && s.id)
+        .sort((a, b) => {
+          const dateA = new Date(`${a.date}T${a.time}`);
+          const dateB = new Date(`${b.date}T${b.time}`);
+          return dateA.getTime() - dateB.getTime();
+        });
+      setSlots(available);
+    } catch {
+      // silently fail
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  useEffect(() => {
+    fetchSlots();
+  }, []);
+
+  function handleBooked() {
+    setSelectedSlot(null);
+    setBooked(true);
+    fetchSlots();
+  }
+
+  if (booked) {
+    return (
+      <main className="min-h-screen bg-white flex items-center justify-center p-4">
+        <div className="bg-card-bg rounded-2xl p-10 max-w-md w-full text-center">
+          <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-5">
+            <svg className="w-8 h-8 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+            </svg>
+          </div>
+          <h1 className="text-2xl font-display font-bold text-foreground mb-2">Booked!</h1>
+          <p className="text-text-secondary mb-2">Your interview has been scheduled.</p>
+          <p className="text-sm text-text-secondary mb-6">
+            Zoom: <a href={ZOOM_LINK} className="text-accent hover:underline break-all">{ZOOM_LINK}</a>
           </p>
-        </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
+          <button
+            onClick={() => setBooked(false)}
+            className="text-sm text-accent hover:underline"
           >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={16}
-            />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
+            Back to available slots
+          </button>
         </div>
       </main>
-    </div>
+    );
+  }
+
+  return (
+    <main className="min-h-screen bg-white">
+      <div className="max-w-2xl mx-auto px-4 py-14 sm:py-20">
+        <div className="mb-10">
+          <h1 className="text-3xl sm:text-4xl font-display font-bold text-foreground mb-3">
+            Book Your Interview
+          </h1>
+          <p className="text-text-secondary text-lg">Select an available time slot</p>
+        </div>
+
+        {loading ? (
+          <div className="flex justify-center py-20">
+            <div className="w-8 h-8 border-2 border-accent border-t-transparent rounded-full animate-spin" />
+          </div>
+        ) : slots.length === 0 ? (
+          <div className="bg-card-bg rounded-2xl p-10 text-center">
+            <p className="text-text-secondary text-lg">No available slots at the moment</p>
+            <p className="text-text-secondary text-sm mt-1">Please check back later</p>
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {slots.map((slot) => (
+              <SlotCard key={slot.id} slot={slot} onClick={() => setSelectedSlot(slot)} />
+            ))}
+          </div>
+        )}
+      </div>
+
+      {selectedSlot && (
+        <BookingModal
+          slot={selectedSlot}
+          zoomLink={ZOOM_LINK}
+          onClose={() => setSelectedSlot(null)}
+          onBooked={handleBooked}
+        />
+      )}
+    </main>
   );
 }
