@@ -11,7 +11,7 @@ export default function SlotCard({ slot, onClick }: SlotCardProps) {
   return (
     <button
       onClick={onClick}
-      className="bg-white rounded-xl px-4 py-3 hover:shadow-md transition-all group text-left border border-transparent hover:border-accent/30"
+      className="w-full bg-white rounded-xl px-5 py-4 hover:shadow-md transition-all group text-left border border-transparent hover:border-accent/30"
     >
       <div className="flex items-center justify-between gap-3">
         <div className="min-w-0">
