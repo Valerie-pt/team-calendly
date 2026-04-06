@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import type { Slot } from "@/lib/sheets";
 import { generateGoogleCalendarUrl } from "@/lib/calendar";
-import SlotCard from "@/components/SlotCard";
+import DayGroup from "@/components/DayGroup";
 import BookingModal from "@/components/BookingModal";
 
 const ZOOM_LINK = process.env.NEXT_PUBLIC_ZOOM_LINK || "https://zoom.us/j/your-meeting-id";
@@ -143,9 +143,19 @@ export default function CandidatePage() {
             <p className="text-text-secondary text-sm mt-1">Загляните позже</p>
           </div>
         ) : (
-          <div className="space-y-3">
-            {slots.map((slot) => (
-              <SlotCard key={slot.id} slot={slot} onClick={() => setSelectedSlot(slot)} />
+          <div className="space-y-8">
+            {Object.entries(
+              slots.reduce<Record<string, typeof slots>>((groups, slot) => {
+                (groups[slot.date] ??= []).push(slot);
+                return groups;
+              }, {})
+            ).map(([date, daySlots]) => (
+              <DayGroup
+                key={date}
+                date={date}
+                slots={daySlots}
+                onSelect={setSelectedSlot}
+              />
             ))}
           </div>
         )}
