@@ -1,17 +1,8 @@
 import { google } from "googleapis";
-
-function getAuth() {
-  return new google.auth.GoogleAuth({
-    credentials: {
-      client_email: process.env.GOOGLE_CLIENT_EMAIL,
-      private_key: process.env.GOOGLE_PRIVATE_KEY?.replace(/\\n/g, "\n"),
-    },
-    scopes: ["https://www.googleapis.com/auth/spreadsheets"],
-  });
-}
+import { getGoogleAuth } from "./google-auth";
 
 function getSheets() {
-  return google.sheets({ version: "v4", auth: getAuth() });
+  return google.sheets({ version: "v4", auth: getGoogleAuth() });
 }
 
 const SPREADSHEET_ID = process.env.GOOGLE_SHEET_ID!;

@@ -1,5 +1,6 @@
 import { NextRequest } from "next/server";
 import { getSlots, addSlot, bookSlot, deleteSlot } from "@/lib/sheets";
+import { createCalendarEvent } from "@/lib/gcal";
 
 export const dynamic = "force-dynamic";
 
@@ -42,6 +43,23 @@ export async function POST(request: NextRequest) {
       if (!success) {
         return Response.json({ error: "Slot is no longer available" }, { status: 409 });
       }
+
+      // Find the slot data to create calendar event
+      const allSlots = await getSlots();
+      const bookedSlot = allSlots.find((s) => s.id === slotId);
+      if (bookedSlot) {
+        await createCalendarEvent({
+          interviewer_email: bookedSlot.interviewer_email,
+          interviewer_name: bookedSlot.interviewer_name,
+          candidate_name,
+          candidate_email,
+          candidate_telegram: candidate_telegram || "",
+          date: bookedSlot.date,
+          time: bookedSlot.time,
+          duration_minutes: bookedSlot.duration_minutes,
+        });
+      }
+
       return Response.json({ success: true });
     }
 
