@@ -24,8 +24,10 @@ export default function CandidatePage() {
     try {
       const res = await fetch("/api/slots");
       const data: Slot[] = await res.json();
+      const now = Date.now();
       const available = data
         .filter((s) => s.status === "available" && s.id)
+        .filter((s) => new Date(`${s.date}T${s.time}:00+03:00`).getTime() > now)
         .sort((a, b) => {
           const dateA = new Date(`${a.date}T${a.time}`);
           const dateB = new Date(`${b.date}T${b.time}`);
