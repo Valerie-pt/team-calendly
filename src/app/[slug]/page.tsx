@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, use } from "react";
+import { useEffect, useMemo, useState, use } from "react";
 import { useRouter } from "next/navigation";
 import type { Slot, Event } from "@/lib/sheets";
 import { generateGoogleCalendarUrl } from "@/lib/calendar";
@@ -13,6 +13,45 @@ interface BookedInfo {
   candidateName: string;
 }
 
+const MONTHS_GENITIVE = [
+  "января", "февраля", "марта", "апреля", "мая", "июня",
+  "июля", "августа", "сентября", "октября", "ноября", "декабря",
+];
+
+// Returns the Monday of the week containing the given date (in local time).
+function startOfWeek(d: Date): Date {
+  const dt = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+  const day = dt.getDay(); // 0=Sun, 1=Mon, ..., 6=Sat
+  const diff = day === 0 ? -6 : 1 - day; // Mon = 0 offset
+  dt.setDate(dt.getDate() + diff);
+  return dt;
+}
+
+function addDays(d: Date, n: number): Date {
+  const dt = new Date(d);
+  dt.setDate(dt.getDate() + n);
+  return dt;
+}
+
+function toISODate(d: Date): string {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+}
+
+function formatWeekRange(start: Date): string {
+  const end = addDays(start, 6);
+  const startDay = start.getDate();
+  const startMonth = MONTHS_GENITIVE[start.getMonth()];
+  const endDay = end.getDate();
+  const endMonth = MONTHS_GENITIVE[end.getMonth()];
+  if (start.getMonth() === end.getMonth()) {
+    return `${startDay}–${endDay} ${endMonth}`;
+  }
+  return `${startDay} ${startMonth} – ${endDay} ${endMonth}`;
+}
+
 export default function EventPage({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = use(params);
   const router = useRouter();
@@ -23,6 +62,7 @@ export default function EventPage({ params }: { params: Promise<{ slug: string }
   const [notFound, setNotFound] = useState(false);
   const [selectedSlot, setSelectedSlot] = useState<Slot | null>(null);
   const [bookedInfo, setBookedInfo] = useState<BookedInfo | null>(null);
+  const [weekStart, setWeekStart] = useState<Date>(() => startOfWeek(new Date()));
 
   async function fetchData() {
     setLoading(true);
@@ -184,21 +224,12 @@ export default function EventPage({ params }: { params: Promise<{ slug: string }
             <p className="text-text-secondary text-sm mt-1">Загляните позже</p>
           </div>
         ) : (
-          <div className="space-y-8">
-            {Object.entries(
-              slots.reduce<Record<string, typeof slots>>((groups, slot) => {
-                (groups[slot.date] ??= []).push(slot);
-                return groups;
-              }, {})
-            ).map(([date, daySlots]) => (
-              <DayGroup
-                key={date}
-                date={date}
-                slots={daySlots}
-                onSelect={setSelectedSlot}
-              />
-            ))}
-          </div>
+          <WeekView
+            slots={slots}
+            weekStart={weekStart}
+            setWeekStart={setWeekStart}
+            onSelect={setSelectedSlot}
+          />
         )}
       </div>
 
@@ -212,5 +243,103 @@ export default function EventPage({ params }: { params: Promise<{ slug: string }
         />
       )}
     </main>
+  );
+}
+
+function WeekView({
+  slots,
+  weekStart,
+  setWeekStart,
+  onSelect,
+}: {
+  slots: Slot[];
+  weekStart: Date;
+  setWeekStart: (d: Date) => void;
+  onSelect: (slot: Slot) => void;
+}) {
+  // Determine the earliest and latest weeks that have slots, used to disable navigation.
+  const slotDates = slots.map((s) => new Date(s.date + "T00:00:00"));
+  const earliestSlotDate = slotDates.length
+    ? new Date(Math.min(...slotDates.map((d) => d.getTime())))
+    : null;
+  const latestSlotDate = slotDates.length
+    ? new Date(Math.max(...slotDates.map((d) => d.getTime())))
+    : null;
+  const earliestWeek = earliestSlotDate ? startOfWeek(earliestSlotDate) : null;
+  const latestWeek = latestSlotDate ? startOfWeek(latestSlotDate) : null;
+  const todayWeek = startOfWeek(new Date());
+
+  // Clamp weekStart so that empty weeks are skipped initially.
+  const visibleWeekStart = useMemo(() => {
+    if (!earliestWeek || !latestWeek) return weekStart;
+    if (weekStart.getTime() < earliestWeek.getTime() && earliestWeek.getTime() >= todayWeek.getTime()) {
+      return earliestWeek;
+    }
+    return weekStart;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [weekStart, earliestWeek?.getTime(), latestWeek?.getTime()]);
+
+  const weekEnd = addDays(visibleWeekStart, 7);
+  const weekSlots = slots.filter((s) => {
+    const dt = new Date(s.date + "T00:00:00");
+    return dt.getTime() >= visibleWeekStart.getTime() && dt.getTime() < weekEnd.getTime();
+  });
+
+  const groupedByDay = weekSlots.reduce<Record<string, Slot[]>>((acc, s) => {
+    (acc[s.date] ??= []).push(s);
+    return acc;
+  }, {});
+
+  const days = Array.from({ length: 7 }, (_, i) => {
+    const d = addDays(visibleWeekStart, i);
+    return { date: d, iso: toISODate(d), slots: groupedByDay[toISODate(d)] || [] };
+  });
+
+  const canGoBack = !earliestWeek || visibleWeekStart.getTime() > earliestWeek.getTime();
+  const canGoForward = !latestWeek || visibleWeekStart.getTime() < latestWeek.getTime();
+
+  return (
+    <div>
+      <div className="flex items-center justify-between mb-6">
+        <button
+          onClick={() => setWeekStart(addDays(visibleWeekStart, -7))}
+          disabled={!canGoBack}
+          aria-label="Предыдущая неделя"
+          className="w-10 h-10 flex items-center justify-center rounded-full bg-card-bg text-foreground hover:bg-border disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+        >
+          <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
+          </svg>
+        </button>
+        <p className="font-semibold text-foreground capitalize">{formatWeekRange(visibleWeekStart)}</p>
+        <button
+          onClick={() => setWeekStart(addDays(visibleWeekStart, 7))}
+          disabled={!canGoForward}
+          aria-label="Следующая неделя"
+          className="w-10 h-10 flex items-center justify-center rounded-full bg-card-bg text-foreground hover:bg-border disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+        >
+          <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
+          </svg>
+        </button>
+      </div>
+
+      {weekSlots.length === 0 ? (
+        <div className="bg-card-bg rounded-2xl p-10 text-center">
+          <p className="text-text-secondary">На этой неделе свободных слотов нет</p>
+        </div>
+      ) : (
+        <div className="space-y-6">
+          {days.filter((d) => d.slots.length > 0).map((d) => (
+            <DayGroup
+              key={d.iso}
+              date={d.iso}
+              slots={d.slots}
+              onSelect={onSelect}
+            />
+          ))}
+        </div>
+      )}
+    </div>
   );
 }
