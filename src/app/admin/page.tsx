@@ -71,15 +71,28 @@ export default function AdminPage() {
     }
   }
 
+  async function handleLogout() {
+    await fetch("/api/auth", { method: "DELETE" });
+    window.location.href = "/login";
+  }
+
   const available = slots.filter((s) => s.status === "available");
   const booked = slots.filter((s) => s.status === "booked");
 
   return (
     <main className="min-h-screen bg-white">
       <div className="max-w-3xl mx-auto px-4 py-14 sm:py-20">
-        <h1 className="text-3xl sm:text-4xl font-display font-bold text-foreground mb-10">
-          Панель управления
-        </h1>
+        <div className="flex items-center justify-between mb-10">
+          <h1 className="text-3xl sm:text-4xl font-display font-bold text-foreground">
+            Панель управления
+          </h1>
+          <button
+            onClick={handleLogout}
+            className="text-sm text-text-secondary hover:text-foreground transition-colors"
+          >
+            Выйти
+          </button>
+        </div>
 
         {/* Add slot form */}
         <section className="bg-card-bg rounded-2xl p-6 sm:p-8 mb-10">

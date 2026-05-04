@@ -1,6 +1,7 @@
 import { NextRequest } from "next/server";
 import { getSlots, addSlot, bookSlot, deleteSlot } from "@/lib/sheets";
 import { createCalendarEvent } from "@/lib/gcal";
+import { isAuthenticated } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
 
@@ -20,6 +21,9 @@ export async function POST(request: NextRequest) {
     const { action } = body;
 
     if (action === "add") {
+      if (!isAuthenticated(request)) {
+        return Response.json({ error: "Unauthorized" }, { status: 401 });
+      }
       const { interviewer_name, interviewer_email, date, time, duration_minutes } = body;
       if (!interviewer_name || !interviewer_email || !date || !time) {
         return Response.json({ error: "Missing required fields" }, { status: 400 });
@@ -64,6 +68,9 @@ export async function POST(request: NextRequest) {
     }
 
     if (action === "delete") {
+      if (!isAuthenticated(request)) {
+        return Response.json({ error: "Unauthorized" }, { status: 401 });
+      }
       const { slotId } = body;
       if (!slotId) {
         return Response.json({ error: "Missing slotId" }, { status: 400 });
