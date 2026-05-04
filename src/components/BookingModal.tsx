@@ -6,11 +6,12 @@ import type { Slot } from "@/lib/sheets";
 interface BookingModalProps {
   slot: Slot;
   zoomLink: string;
+  notificationEmails?: string[];
   onClose: () => void;
   onBooked: (candidateName: string) => void;
 }
 
-export default function BookingModal({ slot, zoomLink, onClose, onBooked }: BookingModalProps) {
+export default function BookingModal({ slot, zoomLink, notificationEmails, onClose, onBooked }: BookingModalProps) {
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [telegram, setTelegram] = useState("");
@@ -47,6 +48,7 @@ export default function BookingModal({ slot, zoomLink, onClose, onBooked }: Book
           candidate_email: email,
           interviewer_name: slot.interviewer_name,
           interviewer_email: slot.interviewer_email,
+          notification_emails: notificationEmails,
           candidate_telegram: telegram,
           date: slot.date,
           time: slot.time,

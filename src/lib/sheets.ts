@@ -32,6 +32,7 @@ export interface Event {
   slug: string;
   zoom_link: string;
   created_at: string;
+  notification_emails: string[];
 }
 
 export interface Block {
@@ -161,7 +162,7 @@ export async function getEvents(): Promise<Event[]> {
   try {
     const res = await sheets.spreadsheets.values.get({
       spreadsheetId: SPREADSHEET_ID,
-      range: `${EVENTS_SHEET}!A2:E`,
+      range: `${EVENTS_SHEET}!A2:F`,
     });
     const rows = res.data.values || [];
     return rows
@@ -172,6 +173,10 @@ export async function getEvents(): Promise<Event[]> {
         slug: row[2] || "",
         zoom_link: row[3] || "",
         created_at: row[4] || "",
+        notification_emails: (row[5] || "")
+          .split(",")
+          .map((e: string) => e.trim())
+          .filter(Boolean),
       }));
   } catch (error) {
     console.error("Failed to read Events sheet:", error);
@@ -186,21 +191,49 @@ export async function addEvent(event: Omit<Event, "id" | "created_at">): Promise
 
   await sheets.spreadsheets.values.append({
     spreadsheetId: SPREADSHEET_ID,
-    range: `${EVENTS_SHEET}!A:E`,
+    range: `${EVENTS_SHEET}!A:F`,
     valueInputOption: "RAW",
     requestBody: {
-      values: [[id, event.name, event.slug, event.zoom_link, created_at]],
+      values: [[
+        id,
+        event.name,
+        event.slug,
+        event.zoom_link,
+        created_at,
+        event.notification_emails.join(","),
+      ]],
     },
   });
 
   return id;
 }
 
+export async function updateEventNotificationEmails(eventId: string, emails: string[]): Promise<boolean> {
+  const sheets = getSheets();
+  const res = await sheets.spreadsheets.values.get({
+    spreadsheetId: SPREADSHEET_ID,
+    range: `${EVENTS_SHEET}!A2:F`,
+  });
+  const rows = res.data.values || [];
+  const rowIndex = rows.findIndex((row) => row[0] === eventId);
+  if (rowIndex === -1) return false;
+  const sheetRow = rowIndex + 2;
+  await sheets.spreadsheets.values.update({
+    spreadsheetId: SPREADSHEET_ID,
+    range: `${EVENTS_SHEET}!F${sheetRow}`,
+    valueInputOption: "RAW",
+    requestBody: {
+      values: [[emails.join(",")]],
+    },
+  });
+  return true;
+}
+
 export async function deleteEvent(eventId: string): Promise<boolean> {
   const sheets = getSheets();
   const res = await sheets.spreadsheets.values.get({
     spreadsheetId: SPREADSHEET_ID,
-    range: `${EVENTS_SHEET}!A2:E`,
+    range: `${EVENTS_SHEET}!A2:F`,
   });
 
   const rows = res.data.values || [];
@@ -210,10 +243,10 @@ export async function deleteEvent(eventId: string): Promise<boolean> {
   const sheetRow = rowIndex + 2;
   await sheets.spreadsheets.values.update({
     spreadsheetId: SPREADSHEET_ID,
-    range: `${EVENTS_SHEET}!A${sheetRow}:E${sheetRow}`,
+    range: `${EVENTS_SHEET}!A${sheetRow}:F${sheetRow}`,
     valueInputOption: "RAW",
     requestBody: {
-      values: [["", "", "", "", ""]],
+      values: [["", "", "", "", "", ""]],
     },
   });
   return true;

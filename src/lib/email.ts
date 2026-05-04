@@ -12,6 +12,7 @@ export async function sendBookingEmails(params: {
   candidate_telegram: string;
   interviewer_name: string;
   interviewer_email: string;
+  notification_emails?: string[];
   date: string;
   time: string;
   duration_minutes: number;
@@ -58,13 +59,22 @@ export async function sendBookingEmails(params: {
   }
 
   if (INTERVIEWER_TEMPLATE_ID) {
-    promises.push(
-      emailjs.send(SERVICE_ID, INTERVIEWER_TEMPLATE_ID, {
-        ...templateParams,
-        to_email: params.interviewer_email,
-        to_name: params.interviewer_name,
-      }, PUBLIC_KEY)
-    );
+    // Build the list of team recipients: interviewer + per-event notification emails, deduplicated
+    const teamRecipients = new Set<string>();
+    if (params.interviewer_email) teamRecipients.add(params.interviewer_email.toLowerCase());
+    for (const email of params.notification_emails || []) {
+      if (email) teamRecipients.add(email.toLowerCase());
+    }
+
+    for (const recipient of teamRecipients) {
+      promises.push(
+        emailjs.send(SERVICE_ID, INTERVIEWER_TEMPLATE_ID, {
+          ...templateParams,
+          to_email: recipient,
+          to_name: recipient === params.interviewer_email.toLowerCase() ? params.interviewer_name : "Команда",
+        }, PUBLIC_KEY)
+      );
+    }
   }
 
   await Promise.allSettled(promises);

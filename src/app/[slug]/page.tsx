@@ -206,6 +206,7 @@ export default function EventPage({ params }: { params: Promise<{ slug: string }
         <BookingModal
           slot={selectedSlot}
           zoomLink={event.zoom_link || defaultZoom}
+          notificationEmails={event.notification_emails}
           onClose={() => setSelectedSlot(null)}
           onBooked={handleBooked}
         />

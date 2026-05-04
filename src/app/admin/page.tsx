@@ -43,7 +43,10 @@ export default function AdminPage() {
   const [eventName, setEventName] = useState("");
   const [eventSlug, setEventSlug] = useState("");
   const [eventZoom, setEventZoom] = useState("");
+  const [eventNotifications, setEventNotifications] = useState("");
   const [eventError, setEventError] = useState("");
+  const [editingEventId, setEditingEventId] = useState<string | null>(null);
+  const [editingEmails, setEditingEmails] = useState("");
 
   // Slot form
   const [slotEventId, setSlotEventId] = useState("");
@@ -98,6 +101,7 @@ export default function AdminPage() {
         name: eventName,
         slug: eventSlug || slugify(eventName),
         zoom_link: eventZoom,
+        notification_emails: eventNotifications,
       }),
     });
     if (!res.ok) {
@@ -108,6 +112,22 @@ export default function AdminPage() {
     setEventName("");
     setEventSlug("");
     setEventZoom("");
+    setEventNotifications("");
+    fetchAll();
+  }
+
+  async function handleSaveNotifications(eventId: string) {
+    await fetch("/api/events", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        action: "update_notifications",
+        eventId,
+        notification_emails: editingEmails,
+      }),
+    });
+    setEditingEventId(null);
+    setEditingEmails("");
     fetchAll();
   }
 
@@ -264,6 +284,13 @@ export default function AdminPage() {
                   className="w-full px-4 py-2.5 bg-white border border-border rounded-xl focus:ring-2 focus:ring-accent focus:border-transparent outline-none text-foreground"
                   placeholder="Zoom-ссылка (необязательно — иначе используется ссылка по умолчанию)"
                 />
+                <textarea
+                  value={eventNotifications}
+                  onChange={(e) => setEventNotifications(e.target.value)}
+                  rows={2}
+                  className="w-full px-4 py-2.5 bg-white border border-border rounded-xl focus:ring-2 focus:ring-accent focus:border-transparent outline-none text-foreground resize-none"
+                  placeholder="Уведомления на email (через запятую) — кому ещё писать о новых бронированиях"
+                />
                 {eventError && (
                   <p className="text-red-600 text-sm bg-red-50 p-3 rounded-xl">{eventError}</p>
                 )}
@@ -280,23 +307,66 @@ export default function AdminPage() {
               ) : (
                 <div className="space-y-2">
                   {events.map((ev) => (
-                    <div key={ev.id} className="bg-white rounded-xl px-4 py-3 flex items-center justify-between gap-3">
-                      <div className="min-w-0 flex-1">
-                        <p className="font-medium text-foreground truncate">{ev.name}</p>
-                        <p className="text-xs text-text-secondary truncate">/{ev.slug}</p>
+                    <div key={ev.id} className="bg-white rounded-xl px-4 py-3">
+                      <div className="flex items-center justify-between gap-3 mb-1">
+                        <div className="min-w-0 flex-1">
+                          <p className="font-medium text-foreground truncate">{ev.name}</p>
+                          <p className="text-xs text-text-secondary truncate">/{ev.slug}</p>
+                        </div>
+                        <button
+                          onClick={() => copyEventLink(ev.slug)}
+                          className="px-3 py-1.5 text-xs text-foreground bg-card-bg rounded-full hover:bg-border transition-colors"
+                        >
+                          Копировать ссылку
+                        </button>
+                        <button
+                          onClick={() => handleDeleteEvent(ev.id)}
+                          className="px-3 py-1.5 text-xs text-red-600 hover:bg-red-50 rounded-full transition-colors"
+                        >
+                          Удалить
+                        </button>
                       </div>
-                      <button
-                        onClick={() => copyEventLink(ev.slug)}
-                        className="px-3 py-1.5 text-xs text-foreground bg-card-bg rounded-full hover:bg-border transition-colors"
-                      >
-                        Копировать ссылку
-                      </button>
-                      <button
-                        onClick={() => handleDeleteEvent(ev.id)}
-                        className="px-3 py-1.5 text-xs text-red-600 hover:bg-red-50 rounded-full transition-colors"
-                      >
-                        Удалить
-                      </button>
+
+                      {editingEventId === ev.id ? (
+                        <div className="mt-2 space-y-2">
+                          <textarea
+                            value={editingEmails}
+                            onChange={(e) => setEditingEmails(e.target.value)}
+                            rows={2}
+                            className="w-full px-3 py-2 text-sm bg-card-bg border border-border rounded-lg focus:ring-2 focus:ring-accent focus:border-transparent outline-none text-foreground resize-none"
+                            placeholder="email через запятую"
+                          />
+                          <div className="flex gap-2">
+                            <button
+                              onClick={() => handleSaveNotifications(ev.id)}
+                              className="px-3 py-1.5 text-xs text-white bg-accent rounded-full hover:bg-accent-hover transition-colors"
+                            >
+                              Сохранить
+                            </button>
+                            <button
+                              onClick={() => { setEditingEventId(null); setEditingEmails(""); }}
+                              className="px-3 py-1.5 text-xs text-text-secondary hover:text-foreground transition-colors"
+                            >
+                              Отмена
+                            </button>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="flex items-center gap-2 mt-1">
+                          <p className="text-xs text-text-secondary truncate flex-1">
+                            Уведомления: {ev.notification_emails.length > 0 ? ev.notification_emails.join(", ") : "только организатору слота"}
+                          </p>
+                          <button
+                            onClick={() => {
+                              setEditingEventId(ev.id);
+                              setEditingEmails(ev.notification_emails.join(", "));
+                            }}
+                            className="px-2 py-1 text-xs text-text-secondary hover:text-foreground transition-colors"
+                          >
+                            ✎
+                          </button>
+                        </div>
+                      )}
                     </div>
                   ))}
                 </div>
