@@ -1,0 +1,63 @@
+import { NextRequest } from "next/server";
+import { getEvents, addEvent, deleteEvent } from "@/lib/sheets";
+import { isAuthenticated } from "@/lib/auth";
+
+export const dynamic = "force-dynamic";
+
+export async function GET() {
+  try {
+    const events = await getEvents();
+    return Response.json(events);
+  } catch (error) {
+    console.error("GET /api/events error:", error);
+    return Response.json({ error: "Failed to fetch events" }, { status: 500 });
+  }
+}
+
+export async function POST(request: NextRequest) {
+  try {
+    if (!isAuthenticated(request)) {
+      return Response.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    const body = await request.json();
+    const { action } = body;
+
+    if (action === "add") {
+      const { name, slug, zoom_link } = body;
+      if (!name || !slug || !zoom_link) {
+        return Response.json({ error: "Missing required fields" }, { status: 400 });
+      }
+      // Validate slug
+      const cleanSlug = String(slug).toLowerCase().replace(/[^a-z0-9-]/g, "-");
+      if (!cleanSlug) {
+        return Response.json({ error: "Invalid slug" }, { status: 400 });
+      }
+      // Check uniqueness
+      const events = await getEvents();
+      if (events.some((e) => e.slug === cleanSlug)) {
+        return Response.json({ error: "Slug already exists" }, { status: 409 });
+      }
+
+      const id = await addEvent({ name, slug: cleanSlug, zoom_link });
+      return Response.json({ id, slug: cleanSlug });
+    }
+
+    if (action === "delete") {
+      const { eventId } = body;
+      if (!eventId) {
+        return Response.json({ error: "Missing eventId" }, { status: 400 });
+      }
+      const success = await deleteEvent(eventId);
+      if (!success) {
+        return Response.json({ error: "Event not found" }, { status: 404 });
+      }
+      return Response.json({ success: true });
+    }
+
+    return Response.json({ error: "Invalid action" }, { status: 400 });
+  } catch (error) {
+    console.error("POST /api/events error:", error);
+    return Response.json({ error: "Server error" }, { status: 500 });
+  }
+}

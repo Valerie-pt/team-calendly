@@ -6,7 +6,11 @@ function getSheets() {
 }
 
 const SPREADSHEET_ID = process.env.GOOGLE_SHEET_ID!;
-const SHEET_NAME = "Slots";
+const SLOTS_SHEET = "Slots";
+const EVENTS_SHEET = "Events";
+const BLOCKS_SHEET = "Blocks";
+
+// ----- Types -----
 
 export interface Slot {
   id: string;
@@ -19,13 +23,38 @@ export interface Slot {
   candidate_name: string;
   candidate_email: string;
   candidate_telegram: string;
+  event_id: string;
 }
+
+export interface Event {
+  id: string;
+  name: string;
+  slug: string;
+  zoom_link: string;
+  created_at: string;
+}
+
+export interface Block {
+  id: string;
+  date: string;
+  time: string;
+  duration_minutes: number;
+  recurring: boolean;
+  label: string;
+  created_at: string;
+}
+
+function genId() {
+  return Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+}
+
+// ----- Slots -----
 
 export async function getSlots(): Promise<Slot[]> {
   const sheets = getSheets();
   const res = await sheets.spreadsheets.values.get({
     spreadsheetId: SPREADSHEET_ID,
-    range: `${SHEET_NAME}!A2:J`,
+    range: `${SLOTS_SHEET}!A2:K`,
   });
 
   const rows = res.data.values || [];
@@ -40,16 +69,17 @@ export async function getSlots(): Promise<Slot[]> {
     candidate_name: row[7] || "",
     candidate_email: row[8] || "",
     candidate_telegram: row[9] || "",
+    event_id: row[10] || "",
   }));
 }
 
 export async function addSlot(slot: Omit<Slot, "id" | "status" | "candidate_name" | "candidate_email" | "candidate_telegram">) {
   const sheets = getSheets();
-  const id = Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+  const id = genId();
 
   await sheets.spreadsheets.values.append({
     spreadsheetId: SPREADSHEET_ID,
-    range: `${SHEET_NAME}!A:J`,
+    range: `${SLOTS_SHEET}!A:K`,
     valueInputOption: "RAW",
     requestBody: {
       values: [[
@@ -63,6 +93,7 @@ export async function addSlot(slot: Omit<Slot, "id" | "status" | "candidate_name
         "",
         "",
         "",
+        slot.event_id,
       ]],
     },
   });
@@ -74,7 +105,7 @@ export async function bookSlot(slotId: string, candidateName: string, candidateE
   const sheets = getSheets();
   const res = await sheets.spreadsheets.values.get({
     spreadsheetId: SPREADSHEET_ID,
-    range: `${SHEET_NAME}!A2:J`,
+    range: `${SLOTS_SHEET}!A2:K`,
   });
 
   const rows = res.data.values || [];
@@ -88,7 +119,7 @@ export async function bookSlot(slotId: string, candidateName: string, candidateE
   const sheetRow = rowIndex + 2;
   await sheets.spreadsheets.values.update({
     spreadsheetId: SPREADSHEET_ID,
-    range: `${SHEET_NAME}!G${sheetRow}:J${sheetRow}`,
+    range: `${SLOTS_SHEET}!G${sheetRow}:J${sheetRow}`,
     valueInputOption: "RAW",
     requestBody: {
       values: [["booked", candidateName, candidateEmail, candidateTelegram]],
@@ -102,7 +133,7 @@ export async function deleteSlot(slotId: string): Promise<boolean> {
   const sheets = getSheets();
   const res = await sheets.spreadsheets.values.get({
     spreadsheetId: SPREADSHEET_ID,
-    range: `${SHEET_NAME}!A2:I`,
+    range: `${SLOTS_SHEET}!A2:K`,
   });
 
   const rows = res.data.values || [];
@@ -113,12 +144,152 @@ export async function deleteSlot(slotId: string): Promise<boolean> {
   const sheetRow = rowIndex + 2;
   await sheets.spreadsheets.values.update({
     spreadsheetId: SPREADSHEET_ID,
-    range: `${SHEET_NAME}!A${sheetRow}:J${sheetRow}`,
+    range: `${SLOTS_SHEET}!A${sheetRow}:K${sheetRow}`,
     valueInputOption: "RAW",
     requestBody: {
-      values: [["", "", "", "", "", "", "", "", "", ""]],
+      values: [["", "", "", "", "", "", "", "", "", "", ""]],
     },
   });
 
+  return true;
+}
+
+// ----- Events -----
+
+export async function getEvents(): Promise<Event[]> {
+  const sheets = getSheets();
+  try {
+    const res = await sheets.spreadsheets.values.get({
+      spreadsheetId: SPREADSHEET_ID,
+      range: `${EVENTS_SHEET}!A2:E`,
+    });
+    const rows = res.data.values || [];
+    return rows
+      .filter((row) => row[0])
+      .map((row) => ({
+        id: row[0] || "",
+        name: row[1] || "",
+        slug: row[2] || "",
+        zoom_link: row[3] || "",
+        created_at: row[4] || "",
+      }));
+  } catch (error) {
+    console.error("Failed to read Events sheet:", error);
+    return [];
+  }
+}
+
+export async function addEvent(event: Omit<Event, "id" | "created_at">): Promise<string> {
+  const sheets = getSheets();
+  const id = genId();
+  const created_at = new Date().toISOString();
+
+  await sheets.spreadsheets.values.append({
+    spreadsheetId: SPREADSHEET_ID,
+    range: `${EVENTS_SHEET}!A:E`,
+    valueInputOption: "RAW",
+    requestBody: {
+      values: [[id, event.name, event.slug, event.zoom_link, created_at]],
+    },
+  });
+
+  return id;
+}
+
+export async function deleteEvent(eventId: string): Promise<boolean> {
+  const sheets = getSheets();
+  const res = await sheets.spreadsheets.values.get({
+    spreadsheetId: SPREADSHEET_ID,
+    range: `${EVENTS_SHEET}!A2:E`,
+  });
+
+  const rows = res.data.values || [];
+  const rowIndex = rows.findIndex((row) => row[0] === eventId);
+  if (rowIndex === -1) return false;
+
+  const sheetRow = rowIndex + 2;
+  await sheets.spreadsheets.values.update({
+    spreadsheetId: SPREADSHEET_ID,
+    range: `${EVENTS_SHEET}!A${sheetRow}:E${sheetRow}`,
+    valueInputOption: "RAW",
+    requestBody: {
+      values: [["", "", "", "", ""]],
+    },
+  });
+  return true;
+}
+
+// ----- Blocks -----
+
+export async function getBlocks(): Promise<Block[]> {
+  const sheets = getSheets();
+  try {
+    const res = await sheets.spreadsheets.values.get({
+      spreadsheetId: SPREADSHEET_ID,
+      range: `${BLOCKS_SHEET}!A2:G`,
+    });
+    const rows = res.data.values || [];
+    return rows
+      .filter((row) => row[0])
+      .map((row) => ({
+        id: row[0] || "",
+        date: row[1] || "",
+        time: row[2] || "",
+        duration_minutes: parseInt(row[3] || "30", 10),
+        recurring: row[4] === "TRUE" || row[4] === "true",
+        label: row[5] || "",
+        created_at: row[6] || "",
+      }));
+  } catch (error) {
+    console.error("Failed to read Blocks sheet:", error);
+    return [];
+  }
+}
+
+export async function addBlock(block: Omit<Block, "id" | "created_at">): Promise<string> {
+  const sheets = getSheets();
+  const id = genId();
+  const created_at = new Date().toISOString();
+
+  await sheets.spreadsheets.values.append({
+    spreadsheetId: SPREADSHEET_ID,
+    range: `${BLOCKS_SHEET}!A:G`,
+    valueInputOption: "RAW",
+    requestBody: {
+      values: [[
+        id,
+        block.date,
+        block.time,
+        block.duration_minutes,
+        block.recurring ? "TRUE" : "FALSE",
+        block.label,
+        created_at,
+      ]],
+    },
+  });
+
+  return id;
+}
+
+export async function deleteBlock(blockId: string): Promise<boolean> {
+  const sheets = getSheets();
+  const res = await sheets.spreadsheets.values.get({
+    spreadsheetId: SPREADSHEET_ID,
+    range: `${BLOCKS_SHEET}!A2:G`,
+  });
+
+  const rows = res.data.values || [];
+  const rowIndex = rows.findIndex((row) => row[0] === blockId);
+  if (rowIndex === -1) return false;
+
+  const sheetRow = rowIndex + 2;
+  await sheets.spreadsheets.values.update({
+    spreadsheetId: SPREADSHEET_ID,
+    range: `${BLOCKS_SHEET}!A${sheetRow}:G${sheetRow}`,
+    valueInputOption: "RAW",
+    requestBody: {
+      values: [["", "", "", "", "", "", ""]],
+    },
+  });
   return true;
 }

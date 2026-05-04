@@ -1,7 +1,8 @@
 import { NextRequest } from "next/server";
-import { getSlots, addSlot, bookSlot, deleteSlot } from "@/lib/sheets";
+import { getSlots, addSlot, bookSlot, deleteSlot, getEvents, getBlocks } from "@/lib/sheets";
 import { createCalendarEvent } from "@/lib/gcal";
 import { isAuthenticated } from "@/lib/auth";
+import { findSlotConflict, isTooSoonForBooking, MIN_BOOKING_LEAD_HOURS } from "@/lib/conflict";
 
 export const dynamic = "force-dynamic";
 
@@ -24,16 +25,27 @@ export async function POST(request: NextRequest) {
       if (!isAuthenticated(request)) {
         return Response.json({ error: "Unauthorized" }, { status: 401 });
       }
-      const { interviewer_name, interviewer_email, date, time, duration_minutes } = body;
-      if (!interviewer_name || !interviewer_email || !date || !time) {
+      const { interviewer_name, interviewer_email, date, time, duration_minutes, event_id } = body;
+      if (!interviewer_name || !interviewer_email || !date || !time || !event_id) {
         return Response.json({ error: "Missing required fields" }, { status: 400 });
+      }
+      const events = await getEvents();
+      if (!events.some((e) => e.id === event_id)) {
+        return Response.json({ error: "Event not found" }, { status: 400 });
+      }
+      const duration = duration_minutes || 30;
+      const [slots, blocks] = await Promise.all([getSlots(), getBlocks()]);
+      const conflict = findSlotConflict(date, time, duration, slots, blocks);
+      if (conflict.conflict) {
+        return Response.json({ error: conflict.reason }, { status: 409 });
       }
       const id = await addSlot({
         interviewer_name,
         interviewer_email,
         date,
         time,
-        duration_minutes: duration_minutes || 30,
+        duration_minutes: duration,
+        event_id,
       });
       return Response.json({ id });
     }
@@ -43,26 +55,43 @@ export async function POST(request: NextRequest) {
       if (!slotId || !candidate_name || !candidate_email) {
         return Response.json({ error: "Missing required fields" }, { status: 400 });
       }
+
+      // Check 3-hour minimum lead time before booking
+      const allSlots = await getSlots();
+      const targetSlot = allSlots.find((s) => s.id === slotId);
+      if (!targetSlot) {
+        return Response.json({ error: "Slot not found" }, { status: 404 });
+      }
+      if (targetSlot.status === "booked") {
+        return Response.json({ error: "Slot is no longer available" }, { status: 409 });
+      }
+      if (isTooSoonForBooking(targetSlot.date, targetSlot.time)) {
+        return Response.json({
+          error: `Бронировать можно не позднее, чем за ${MIN_BOOKING_LEAD_HOURS} часа до встречи`,
+        }, { status: 409 });
+      }
+
       const success = await bookSlot(slotId, candidate_name, candidate_email, candidate_telegram || "");
       if (!success) {
         return Response.json({ error: "Slot is no longer available" }, { status: 409 });
       }
 
-      // Find the slot data to create calendar event
-      const allSlots = await getSlots();
-      const bookedSlot = allSlots.find((s) => s.id === slotId);
-      if (bookedSlot) {
-        await createCalendarEvent({
-          interviewer_email: bookedSlot.interviewer_email,
-          interviewer_name: bookedSlot.interviewer_name,
-          candidate_name,
-          candidate_email,
-          candidate_telegram: candidate_telegram || "",
-          date: bookedSlot.date,
-          time: bookedSlot.time,
-          duration_minutes: bookedSlot.duration_minutes,
-        });
-      }
+      // Create calendar event in the interviewer's calendar
+      const events = await getEvents();
+      const slotEvent = events.find((e) => e.id === targetSlot.event_id);
+      const zoomLink = slotEvent?.zoom_link || process.env.NEXT_PUBLIC_ZOOM_LINK || "";
+
+      await createCalendarEvent({
+        interviewer_email: targetSlot.interviewer_email,
+        interviewer_name: targetSlot.interviewer_name,
+        candidate_name,
+        candidate_email,
+        candidate_telegram: candidate_telegram || "",
+        date: targetSlot.date,
+        time: targetSlot.time,
+        duration_minutes: targetSlot.duration_minutes,
+        zoom_link: zoomLink,
+      });
 
       return Response.json({ success: true });
     }

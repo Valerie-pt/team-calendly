@@ -5,8 +5,6 @@ function getCalendar() {
   return google.calendar({ version: "v3", auth: getGoogleAuth() });
 }
 
-const ZOOM_LINK = process.env.NEXT_PUBLIC_ZOOM_LINK || "";
-
 export async function createCalendarEvent(params: {
   interviewer_email: string;
   interviewer_name: string;
@@ -16,6 +14,7 @@ export async function createCalendarEvent(params: {
   date: string;
   time: string;
   duration_minutes: number;
+  zoom_link: string;
 }) {
   const calendar = getCalendar();
 
@@ -27,7 +26,7 @@ export async function createCalendarEvent(params: {
     `Email: ${params.candidate_email}`,
     params.candidate_telegram ? `Telegram: ${params.candidate_telegram}` : "",
     "",
-    `Zoom: ${ZOOM_LINK}`,
+    `Zoom: ${params.zoom_link}`,
   ].filter(Boolean).join("\n");
 
   try {
@@ -36,7 +35,7 @@ export async function createCalendarEvent(params: {
       requestBody: {
         summary: `Интервью: ${params.candidate_name}`,
         description,
-        location: ZOOM_LINK,
+        location: params.zoom_link,
         start: {
           dateTime: startDateTime,
           timeZone: "Europe/Moscow",
