@@ -197,12 +197,15 @@ export default function AdminPage() {
   }
 
   const eventById = (id: string) => events.find((e) => e.id === id);
+  const now = Date.now();
+  const isFuture = (s: Slot) => new Date(`${s.date}T${s.time}:00+03:00`).getTime() > now;
+  const futureSlots = slots.filter(isFuture);
   const filteredSlots = slotFilter === "all"
-    ? slots
-    : slots.filter((s) => s.event_id === slotFilter);
+    ? futureSlots
+    : futureSlots.filter((s) => s.event_id === slotFilter);
   const availableSlots = filteredSlots.filter((s) => s.status === "available");
   const bookedSlots = filteredSlots.filter((s) => s.status === "booked");
-  const orphanSlots = slots.filter((s) => !s.event_id);
+  const orphanSlots = futureSlots.filter((s) => !s.event_id);
 
   return (
     <main className="min-h-screen bg-white">
@@ -256,11 +259,10 @@ export default function AdminPage() {
                 </div>
                 <input
                   type="url"
-                  required
                   value={eventZoom}
                   onChange={(e) => setEventZoom(e.target.value)}
                   className="w-full px-4 py-2.5 bg-white border border-border rounded-xl focus:ring-2 focus:ring-accent focus:border-transparent outline-none text-foreground"
-                  placeholder="https://zoom.us/j/..."
+                  placeholder="Zoom-ссылка (необязательно — иначе используется ссылка по умолчанию)"
                 />
                 {eventError && (
                   <p className="text-red-600 text-sm bg-red-50 p-3 rounded-xl">{eventError}</p>
@@ -423,65 +425,13 @@ export default function AdminPage() {
                 </div>
               )}
 
-              {bookedSlots.length > 0 && (
-                <div className="mb-6">
-                  <h3 className="text-sm font-semibold text-foreground mb-2">
-                    Забронированные ({bookedSlots.length})
-                  </h3>
-                  <div className="space-y-2">
-                    {bookedSlots.map((s) => {
-                      const ev = eventById(s.event_id);
-                      return (
-                        <div key={s.id} className="bg-white rounded-xl px-4 py-3 opacity-75">
-                          <p className="font-medium text-foreground">
-                            {formatDate(s.date)} в {s.time}
-                            <span className="text-text-secondary font-normal ml-2 text-sm">{s.duration_minutes} мин</span>
-                          </p>
-                          <p className="text-xs text-text-secondary">
-                            {ev?.name || "—"} · {s.interviewer_name} → {s.candidate_name} ({s.candidate_email})
-                            {s.candidate_telegram && <> · TG: {s.candidate_telegram}</>}
-                          </p>
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-              )}
-
-              {orphanSlots.length > 0 && slotFilter === "all" && (
-                <div>
-                  <h3 className="text-sm font-semibold text-foreground mb-2">
-                    Без типа ({orphanSlots.length})
-                  </h3>
-                  <p className="text-xs text-text-secondary mb-2">Старые слоты без привязки к типу — не отображаются у респондентов.</p>
-                  <div className="space-y-2">
-                    {orphanSlots.map((s) => (
-                      <div key={s.id} className="bg-white rounded-xl px-4 py-3 flex items-center justify-between gap-3">
-                        <div className="min-w-0 flex-1">
-                          <p className="font-medium text-foreground">
-                            {formatDate(s.date)} в {s.time}
-                          </p>
-                          <p className="text-xs text-text-secondary">{s.interviewer_name}</p>
-                        </div>
-                        <button
-                          onClick={() => handleDeleteSlot(s.id)}
-                          className="px-3 py-1.5 text-xs text-red-600 hover:bg-red-50 rounded-full transition-colors"
-                        >
-                          Удалить
-                        </button>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {availableSlots.length === 0 && bookedSlots.length === 0 && orphanSlots.length === 0 && (
-                <p className="text-text-secondary text-sm">Слотов пока нет</p>
+              {availableSlots.length === 0 && (
+                <p className="text-text-secondary text-sm">Свободных слотов пока нет</p>
               )}
             </section>
 
             {/* BLOCKS */}
-            <section className="bg-card-bg rounded-2xl p-6 sm:p-8">
+            <section className="bg-card-bg rounded-2xl p-6 sm:p-8 mb-10">
               <h2 className="text-lg font-semibold text-foreground mb-1">Заблокированное время</h2>
               <p className="text-sm text-text-secondary mb-5">
                 Когда Zoom-аккаунт занят (например, другая встреча) — заблокируйте время, чтобы новые слоты не пересекались.
@@ -570,6 +520,62 @@ export default function AdminPage() {
                 </div>
               )}
             </section>
+
+            {/* BOOKED */}
+            {bookedSlots.length > 0 && (
+              <section className="bg-card-bg rounded-2xl p-6 sm:p-8 mb-10">
+                <h2 className="text-lg font-semibold text-foreground mb-5">
+                  Забронированные ({bookedSlots.length})
+                </h2>
+                <div className="space-y-2">
+                  {bookedSlots.map((s) => {
+                    const ev = eventById(s.event_id);
+                    return (
+                      <div key={s.id} className="bg-white rounded-xl px-4 py-3 opacity-75">
+                        <p className="font-medium text-foreground">
+                          {formatDate(s.date)} в {s.time}
+                          <span className="text-text-secondary font-normal ml-2 text-sm">{s.duration_minutes} мин</span>
+                        </p>
+                        <p className="text-xs text-text-secondary">
+                          {ev?.name || "—"} · {s.interviewer_name} → {s.candidate_name} ({s.candidate_email})
+                          {s.candidate_telegram && <> · TG: {s.candidate_telegram}</>}
+                        </p>
+                      </div>
+                    );
+                  })}
+                </div>
+              </section>
+            )}
+
+            {/* ORPHANS */}
+            {orphanSlots.length > 0 && slotFilter === "all" && (
+              <section className="bg-card-bg rounded-2xl p-6 sm:p-8">
+                <h2 className="text-lg font-semibold text-foreground mb-1">
+                  Без типа ({orphanSlots.length})
+                </h2>
+                <p className="text-sm text-text-secondary mb-5">
+                  Старые слоты без привязки к типу — не отображаются у респондентов.
+                </p>
+                <div className="space-y-2">
+                  {orphanSlots.map((s) => (
+                    <div key={s.id} className="bg-white rounded-xl px-4 py-3 flex items-center justify-between gap-3">
+                      <div className="min-w-0 flex-1">
+                        <p className="font-medium text-foreground">
+                          {formatDate(s.date)} в {s.time}
+                        </p>
+                        <p className="text-xs text-text-secondary">{s.interviewer_name}</p>
+                      </div>
+                      <button
+                        onClick={() => handleDeleteSlot(s.id)}
+                        className="px-3 py-1.5 text-xs text-red-600 hover:bg-red-50 rounded-full transition-colors"
+                      >
+                        Удалить
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </section>
+            )}
           </>
         )}
       </div>

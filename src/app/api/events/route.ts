@@ -25,7 +25,7 @@ export async function POST(request: NextRequest) {
 
     if (action === "add") {
       const { name, slug, zoom_link } = body;
-      if (!name || !slug || !zoom_link) {
+      if (!name || !slug) {
         return Response.json({ error: "Missing required fields" }, { status: 400 });
       }
       // Validate slug
@@ -39,7 +39,7 @@ export async function POST(request: NextRequest) {
         return Response.json({ error: "Slug already exists" }, { status: 409 });
       }
 
-      const id = await addEvent({ name, slug: cleanSlug, zoom_link });
+      const id = await addEvent({ name, slug: cleanSlug, zoom_link: zoom_link || "" });
       return Response.json({ id, slug: cleanSlug });
     }
 
