@@ -416,7 +416,7 @@ export default function AdminPage() {
                       value={slotName}
                       onChange={(e) => setSlotName(e.target.value)}
                       className="px-4 py-2.5 bg-white border border-border rounded-xl focus:ring-2 focus:ring-accent focus:border-transparent outline-none text-foreground"
-                      placeholder="Ваше имя"
+                      placeholder="Твоё имя"
                     />
                     <input
                       type="email"
@@ -424,7 +424,7 @@ export default function AdminPage() {
                       value={slotEmail}
                       onChange={(e) => setSlotEmail(e.target.value)}
                       className="px-4 py-2.5 bg-white border border-border rounded-xl focus:ring-2 focus:ring-accent focus:border-transparent outline-none text-foreground"
-                      placeholder="Ваш email"
+                      placeholder="Твой email"
                     />
                   </div>
                   <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
@@ -454,11 +454,6 @@ export default function AdminPage() {
                       <option value="90">90 мин</option>
                     </select>
                   </div>
-                  {parseInt(slotDuration, 10) > 40 && (
-                    <p className="text-xs text-amber-800 bg-amber-50 border border-amber-200 p-3 rounded-xl">
-                      ⚠️ Для встречи длиннее 40 минут потребуется Pro-аккаунт Zoom (бесплатный Zoom прерывает звонок на 40-й минуте).
-                    </p>
-                  )}
                   {slotBlockedConflict ? (
                     <div className="bg-amber-50 border border-amber-200 p-4 rounded-xl space-y-3">
                       <div>
@@ -466,8 +461,13 @@ export default function AdminPage() {
                           Аккаунт <span className="font-mono">support@zamesin.ru</span> в это время занят {slotError ? `(${slotError})` : ""}
                         </p>
                         <p className="text-xs text-amber-800 mt-1">
-                          Чтобы всё-таки создать слот в это время — используйте другой Zoom-аккаунт и вставьте его ссылку для встречи ниже. Тогда блокировка не сработает.
+                          Чтобы всё-таки создать слот в это время — используй другой Zoom-аккаунт и вставь его ссылку для встречи ниже. Тогда блокировка не сработает.
                         </p>
+                        {parseInt(slotDuration, 10) > 40 && (
+                          <p className="text-xs text-amber-800 mt-2">
+                            ⚠️ Слот длиннее 40 минут — для него понадобится Pro-аккаунт Zoom (бесплатный обрывает звонок на 40-й минуте).
+                          </p>
+                        )}
                       </div>
                       <input
                         type="url"
