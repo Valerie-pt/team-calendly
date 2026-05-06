@@ -2,7 +2,9 @@ import { NextRequest } from "next/server";
 import { getSlots, addSlot, bookSlot, deleteSlot, getEvents, getBlocks } from "@/lib/sheets";
 import { createCalendarEvent } from "@/lib/gcal";
 import { isAuthenticated } from "@/lib/auth";
-import { findSlotConflict, isTooSoonForBooking, MIN_BOOKING_LEAD_HOURS } from "@/lib/conflict";
+import { findSlotConflict, isTooSoonForBooking, effectiveZoomLink, MIN_BOOKING_LEAD_HOURS } from "@/lib/conflict";
+
+const DEFAULT_ZOOM = process.env.NEXT_PUBLIC_ZOOM_LINK || "";
 
 export const dynamic = "force-dynamic";
 
@@ -25,19 +27,33 @@ export async function POST(request: NextRequest) {
       if (!isAuthenticated(request)) {
         return Response.json({ error: "Unauthorized" }, { status: 401 });
       }
-      const { interviewer_name, interviewer_email, date, time, duration_minutes, event_id } = body;
+      const { interviewer_name, interviewer_email, date, time, duration_minutes, event_id, zoom_link } = body;
       if (!interviewer_name || !interviewer_email || !date || !time || !event_id) {
         return Response.json({ error: "Missing required fields" }, { status: 400 });
       }
       const events = await getEvents();
-      if (!events.some((e) => e.id === event_id)) {
+      const targetEvent = events.find((e) => e.id === event_id);
+      if (!targetEvent) {
         return Response.json({ error: "Event not found" }, { status: 400 });
       }
       const duration = duration_minutes || 30;
       const [slots, blocks] = await Promise.all([getSlots(), getBlocks()]);
-      const conflict = findSlotConflict(date, time, duration, slots, blocks);
+      const newSlotZoom = effectiveZoomLink(zoom_link, targetEvent, DEFAULT_ZOOM);
+      const conflict = findSlotConflict({
+        date,
+        time,
+        duration,
+        newSlotZoom,
+        slots,
+        blocks,
+        events,
+        defaultZoom: DEFAULT_ZOOM,
+      });
       if (conflict.conflict) {
-        return Response.json({ error: conflict.reason }, { status: 409 });
+        return Response.json({
+          error: conflict.reason,
+          conflict_type: conflict.type,
+        }, { status: 409 });
       }
       const id = await addSlot({
         interviewer_name,
@@ -46,6 +62,7 @@ export async function POST(request: NextRequest) {
         time,
         duration_minutes: duration,
         event_id,
+        zoom_link: zoom_link || "",
       });
       return Response.json({ id });
     }
@@ -79,7 +96,7 @@ export async function POST(request: NextRequest) {
       // Create calendar event in the interviewer's calendar
       const events = await getEvents();
       const slotEvent = events.find((e) => e.id === targetSlot.event_id);
-      const zoomLink = slotEvent?.zoom_link || process.env.NEXT_PUBLIC_ZOOM_LINK || "";
+      const zoomLink = effectiveZoomLink(targetSlot.zoom_link, slotEvent, DEFAULT_ZOOM);
 
       await createCalendarEvent({
         interviewer_email: targetSlot.interviewer_email,

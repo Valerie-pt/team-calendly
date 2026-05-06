@@ -24,6 +24,7 @@ export interface Slot {
   candidate_email: string;
   candidate_telegram: string;
   event_id: string;
+  zoom_link: string;
 }
 
 export interface Event {
@@ -55,7 +56,7 @@ export async function getSlots(): Promise<Slot[]> {
   const sheets = getSheets();
   const res = await sheets.spreadsheets.values.get({
     spreadsheetId: SPREADSHEET_ID,
-    range: `${SLOTS_SHEET}!A2:K`,
+    range: `${SLOTS_SHEET}!A2:L`,
   });
 
   const rows = res.data.values || [];
@@ -71,6 +72,7 @@ export async function getSlots(): Promise<Slot[]> {
     candidate_email: row[8] || "",
     candidate_telegram: row[9] || "",
     event_id: row[10] || "",
+    zoom_link: row[11] || "",
   }));
 }
 
@@ -80,7 +82,7 @@ export async function addSlot(slot: Omit<Slot, "id" | "status" | "candidate_name
 
   await sheets.spreadsheets.values.append({
     spreadsheetId: SPREADSHEET_ID,
-    range: `${SLOTS_SHEET}!A:K`,
+    range: `${SLOTS_SHEET}!A:L`,
     valueInputOption: "RAW",
     requestBody: {
       values: [[
@@ -95,6 +97,7 @@ export async function addSlot(slot: Omit<Slot, "id" | "status" | "candidate_name
         "",
         "",
         slot.event_id,
+        slot.zoom_link || "",
       ]],
     },
   });
@@ -106,7 +109,7 @@ export async function bookSlot(slotId: string, candidateName: string, candidateE
   const sheets = getSheets();
   const res = await sheets.spreadsheets.values.get({
     spreadsheetId: SPREADSHEET_ID,
-    range: `${SLOTS_SHEET}!A2:K`,
+    range: `${SLOTS_SHEET}!A2:L`,
   });
 
   const rows = res.data.values || [];
@@ -134,7 +137,7 @@ export async function deleteSlot(slotId: string): Promise<boolean> {
   const sheets = getSheets();
   const res = await sheets.spreadsheets.values.get({
     spreadsheetId: SPREADSHEET_ID,
-    range: `${SLOTS_SHEET}!A2:K`,
+    range: `${SLOTS_SHEET}!A2:L`,
   });
 
   const rows = res.data.values || [];
@@ -145,10 +148,10 @@ export async function deleteSlot(slotId: string): Promise<boolean> {
   const sheetRow = rowIndex + 2;
   await sheets.spreadsheets.values.update({
     spreadsheetId: SPREADSHEET_ID,
-    range: `${SLOTS_SHEET}!A${sheetRow}:K${sheetRow}`,
+    range: `${SLOTS_SHEET}!A${sheetRow}:L${sheetRow}`,
     valueInputOption: "RAW",
     requestBody: {
-      values: [["", "", "", "", "", "", "", "", "", "", ""]],
+      values: [["", "", "", "", "", "", "", "", "", "", "", ""]],
     },
   });
 

@@ -5,6 +5,8 @@ function getCalendar() {
   return google.calendar({ version: "v3", auth: getGoogleAuth() });
 }
 
+const SHARED_CALENDAR_ID = process.env.GOOGLE_SHARED_CALENDAR_ID || "";
+
 export async function createCalendarEvent(params: {
   interviewer_email: string;
   interviewer_name: string;
@@ -25,43 +27,52 @@ export async function createCalendarEvent(params: {
     `Кандидат: ${params.candidate_name}`,
     `Email: ${params.candidate_email}`,
     params.candidate_telegram ? `Telegram: ${params.candidate_telegram}` : "",
+    `Интервьюер: ${params.interviewer_name} (${params.interviewer_email})`,
     "",
     `Zoom: ${params.zoom_link}`,
   ].filter(Boolean).join("\n");
 
+  const baseEvent = {
+    summary: `Интервью: ${params.candidate_name}`,
+    description,
+    location: params.zoom_link,
+    start: { dateTime: startDateTime, timeZone: "Europe/Moscow" },
+    end: { dateTime: endDateTime, timeZone: "Europe/Moscow" },
+    attendees: [
+      { email: params.interviewer_email },
+      { email: params.candidate_email },
+    ],
+    reminders: {
+      useDefault: false,
+      overrides: [{ method: "popup" as const, minutes: 15 }],
+    },
+  };
+
+  // 1. Create event in interviewer's personal calendar (requires that calendar shared with service account)
   try {
     await calendar.events.insert({
       calendarId: params.interviewer_email,
-      requestBody: {
-        summary: `Интервью: ${params.candidate_name}`,
-        description,
-        location: params.zoom_link,
-        start: {
-          dateTime: startDateTime,
-          timeZone: "Europe/Moscow",
-        },
-        end: {
-          dateTime: endDateTime,
-          timeZone: "Europe/Moscow",
-        },
-        attendees: [
-          { email: params.interviewer_email },
-          { email: params.candidate_email },
-        ],
-        reminders: {
-          useDefault: false,
-          overrides: [
-            { method: "popup", minutes: 15 },
-          ],
-        },
-      },
+      requestBody: baseEvent,
       sendUpdates: "all",
     });
-    return true;
   } catch (error) {
-    console.error("Failed to create calendar event:", error);
-    return false;
+    console.error("Failed to create event in interviewer calendar:", error);
   }
+
+  // 2. Also create event in the shared "Zamesin Team" calendar so the whole team sees it
+  if (SHARED_CALENDAR_ID) {
+    try {
+      await calendar.events.insert({
+        calendarId: SHARED_CALENDAR_ID,
+        requestBody: baseEvent,
+        sendUpdates: "none", // don't double-invite — the personal calendar above already invited attendees
+      });
+    } catch (error) {
+      console.error("Failed to create event in shared calendar:", error);
+    }
+  }
+
+  return true;
 }
 
 function toMSKIso(date: string, time: string): string {

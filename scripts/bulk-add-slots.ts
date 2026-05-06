@@ -90,7 +90,7 @@ async function main() {
   // 2. Read existing slots to avoid duplicates
   const slotsRes = await sheets.spreadsheets.values.get({
     spreadsheetId: SPREADSHEET_ID,
-    range: `${SLOTS_SHEET}!A2:K`,
+    range: `${SLOTS_SHEET}!A2:L`,
   });
   const existing = slotsRes.data.values || [];
   const existingKeys = new Set(
@@ -121,6 +121,7 @@ async function main() {
         "", // candidate_email
         "", // candidate_telegram
         eventId,
+        "", // zoom_link override (empty = use event default)
       ]);
     }
   }
@@ -134,7 +135,7 @@ async function main() {
 
   await sheets.spreadsheets.values.append({
     spreadsheetId: SPREADSHEET_ID,
-    range: `${SLOTS_SHEET}!A:K`,
+    range: `${SLOTS_SHEET}!A:L`,
     valueInputOption: "RAW",
     requestBody: { values: newRows },
   });

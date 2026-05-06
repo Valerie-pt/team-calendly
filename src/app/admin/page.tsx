@@ -55,7 +55,10 @@ export default function AdminPage() {
   const [slotDate, setSlotDate] = useState("");
   const [slotTime, setSlotTime] = useState("");
   const [slotDuration, setSlotDuration] = useState("30");
+  const [slotZoomOverride, setSlotZoomOverride] = useState("");
+  const [showZoomOverride, setShowZoomOverride] = useState(false);
   const [slotError, setSlotError] = useState("");
+  const [slotBlockedConflict, setSlotBlockedConflict] = useState(false);
   const [slotFilter, setSlotFilter] = useState("all");
 
   // Block form
@@ -144,6 +147,7 @@ export default function AdminPage() {
   async function handleAddSlot(e: React.FormEvent) {
     e.preventDefault();
     setSlotError("");
+    setSlotBlockedConflict(false);
     const res = await fetch("/api/slots", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -155,15 +159,22 @@ export default function AdminPage() {
         date: slotDate,
         time: slotTime,
         duration_minutes: parseInt(slotDuration, 10),
+        zoom_link: showZoomOverride ? slotZoomOverride : "",
       }),
     });
     if (!res.ok) {
       const data = await res.json();
       setSlotError(data.error || "Ошибка");
+      if (data.conflict_type === "block") {
+        setSlotBlockedConflict(true);
+      }
       return;
     }
     setSlotDate("");
     setSlotTime("");
+    setSlotZoomOverride("");
+    setShowZoomOverride(false);
+    setSlotBlockedConflict(false);
     fetchAll();
   }
 
@@ -226,6 +237,11 @@ export default function AdminPage() {
   const availableSlots = filteredSlots.filter((s) => s.status === "available");
   const bookedSlots = filteredSlots.filter((s) => s.status === "booked");
   const orphanSlots = futureSlots.filter((s) => !s.event_id);
+  const visibleBlocks = blocks.filter((b) => {
+    if (b.recurring) return true;
+    const end = new Date(`${b.date}T${b.time}:00+03:00`).getTime() + b.duration_minutes * 60000;
+    return end > now;
+  });
 
   return (
     <main className="min-h-screen bg-white">
@@ -438,14 +454,36 @@ export default function AdminPage() {
                       <option value="90">90 мин</option>
                     </select>
                   </div>
-                  {slotError && (
+                  {slotBlockedConflict ? (
+                    <div className="bg-amber-50 border border-amber-200 p-4 rounded-xl space-y-3">
+                      <div>
+                        <p className="text-sm font-medium text-amber-900">
+                          Аккаунт <span className="font-mono">support@zamesin.ru</span> в это время занят {slotError ? `(${slotError})` : ""}
+                        </p>
+                        <p className="text-xs text-amber-800 mt-1">
+                          Чтобы всё-таки создать слот в это время — используйте другой Zoom-аккаунт и вставьте его ссылку для встречи ниже. Тогда блокировка не сработает.
+                        </p>
+                      </div>
+                      <input
+                        type="url"
+                        required
+                        value={slotZoomOverride}
+                        onChange={(e) => {
+                          setSlotZoomOverride(e.target.value);
+                          setShowZoomOverride(true);
+                        }}
+                        className="w-full px-4 py-2.5 bg-white border border-amber-300 rounded-xl focus:ring-2 focus:ring-accent focus:border-transparent outline-none text-foreground"
+                        placeholder="https://zoom.us/j/... (своя Zoom-ссылка для этого слота)"
+                      />
+                    </div>
+                  ) : slotError && (
                     <p className="text-red-600 text-sm bg-red-50 p-3 rounded-xl">{slotError}</p>
                   )}
                   <button
                     type="submit"
                     className="px-6 py-2.5 bg-accent text-white rounded-full font-medium hover:bg-accent-hover transition-colors"
                   >
-                    Добавить слот
+                    {slotBlockedConflict && slotZoomOverride ? "Создать с этим Zoom" : "Добавить слот"}
                   </button>
                 </form>
               )}
@@ -561,11 +599,11 @@ export default function AdminPage() {
                 </button>
               </form>
 
-              {blocks.length === 0 ? (
+              {visibleBlocks.length === 0 ? (
                 <p className="text-text-secondary text-sm">Нет заблокированного времени</p>
               ) : (
                 <div className="space-y-2">
-                  {blocks.map((b) => {
+                  {visibleBlocks.map((b) => {
                     const d = new Date(b.date + "T00:00:00");
                     return (
                       <div key={b.id} className="bg-white rounded-xl px-4 py-3 flex items-center justify-between gap-3">

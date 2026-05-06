@@ -128,7 +128,7 @@ export default function EventPage({ params }: { params: Promise<{ slug: string }
 
   if (bookedInfo && event) {
     const { slot, candidateName } = bookedInfo;
-    const zoomLink = event.zoom_link || defaultZoom;
+    const zoomLink = slot.zoom_link || event.zoom_link || defaultZoom;
     const eventTitle = `Интервью: ${candidateName} & ${slot.interviewer_name}`;
     const eventDescription = `Интервью\\nZoom: ${zoomLink}`;
 
@@ -236,7 +236,7 @@ export default function EventPage({ params }: { params: Promise<{ slug: string }
       {selectedSlot && event && (
         <BookingModal
           slot={selectedSlot}
-          zoomLink={event.zoom_link || defaultZoom}
+          zoomLink={selectedSlot.zoom_link || event.zoom_link || defaultZoom}
           notificationEmails={event.notification_emails}
           onClose={() => setSelectedSlot(null)}
           onBooked={handleBooked}

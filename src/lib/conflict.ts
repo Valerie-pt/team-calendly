@@ -1,4 +1,4 @@
-import type { Slot, Block } from "./sheets";
+import type { Slot, Block, Event } from "./sheets";
 
 export const MIN_BOOKING_LEAD_HOURS = 3;
 
@@ -22,29 +22,55 @@ function dateToMSKDate(date: string, time: string): Date {
   return new Date(`${date}T${time}:00+03:00`);
 }
 
+export function effectiveZoomLink(
+  slotZoom: string | undefined,
+  event: Event | undefined,
+  defaultZoom: string
+): string {
+  return (slotZoom && slotZoom.trim()) || (event?.zoom_link || "").trim() || defaultZoom;
+}
+
 export interface ConflictCheck {
   conflict: boolean;
+  type?: "slot" | "block";
   reason?: string;
 }
 
-export function findSlotConflict(
-  date: string,
-  time: string,
-  duration: number,
-  slots: Slot[],
-  blocks: Block[],
-  excludeSlotId?: string
-): ConflictCheck {
-  // Check existing slots (any event)
+export function findSlotConflict(params: {
+  date: string;
+  time: string;
+  duration: number;
+  newSlotZoom: string;
+  slots: Slot[];
+  blocks: Block[];
+  events: Event[];
+  defaultZoom: string;
+  excludeSlotId?: string;
+}): ConflictCheck {
+  const { date, time, duration, newSlotZoom, slots, blocks, events, defaultZoom, excludeSlotId } = params;
+
+  // Two slots conflict only if they use the same effective Zoom link.
+  const eventById = new Map(events.map((e) => [e.id, e]));
+
   for (const s of slots) {
     if (!s.id || s.id === excludeSlotId) continue;
     if (s.date !== date) continue;
-    if (intervalsOverlap(s.time, s.duration_minutes, time, duration)) {
+    if (!intervalsOverlap(s.time, s.duration_minutes, time, duration)) continue;
+
+    const existingZoom = effectiveZoomLink(s.zoom_link, eventById.get(s.event_id), defaultZoom);
+    if (existingZoom === newSlotZoom) {
       return {
         conflict: true,
-        reason: `На ${date} в ${s.time} уже есть слот (${s.duration_minutes} мин)`,
+        type: "slot",
+        reason: `На ${date} в ${s.time} уже есть слот (${s.duration_minutes} мин) на этом же Zoom`,
       };
     }
+  }
+
+  // Blocks reflect the DEFAULT Zoom account being busy. If the new slot uses
+  // a non-default Zoom link, blocks don't apply.
+  if (newSlotZoom !== defaultZoom) {
+    return { conflict: false };
   }
 
   // One-time blocks
@@ -53,7 +79,8 @@ export function findSlotConflict(
     if (intervalsOverlap(b.time, b.duration_minutes, time, duration)) {
       return {
         conflict: true,
-        reason: `Время заблокировано${b.label ? `: ${b.label}` : ""}`,
+        type: "block",
+        reason: b.label || "",
       };
     }
   }
@@ -67,7 +94,8 @@ export function findSlotConflict(
     if (intervalsOverlap(b.time, b.duration_minutes, time, duration)) {
       return {
         conflict: true,
-        reason: `Время заблокировано (повторяется)${b.label ? `: ${b.label}` : ""}`,
+        type: "block",
+        reason: b.label || "",
       };
     }
   }
