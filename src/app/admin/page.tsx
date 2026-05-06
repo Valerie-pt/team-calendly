@@ -454,6 +454,11 @@ export default function AdminPage() {
                       <option value="90">90 мин</option>
                     </select>
                   </div>
+                  {parseInt(slotDuration, 10) > 40 && (
+                    <p className="text-xs text-amber-800 bg-amber-50 border border-amber-200 p-3 rounded-xl">
+                      ⚠️ Для встречи длиннее 40 минут потребуется Pro-аккаунт Zoom (бесплатный Zoom прерывает звонок на 40-й минуте).
+                    </p>
+                  )}
                   {slotBlockedConflict ? (
                     <div className="bg-amber-50 border border-amber-200 p-4 rounded-xl space-y-3">
                       <div>
