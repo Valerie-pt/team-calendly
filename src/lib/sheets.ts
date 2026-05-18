@@ -80,9 +80,20 @@ export async function addSlot(slot: Omit<Slot, "id" | "status" | "candidate_name
   const sheets = getSheets();
   const id = genId();
 
-  await sheets.spreadsheets.values.append({
+  // Find the next empty row by counting existing rows in column A.
+  // Using `update` on an explicit row is more reliable than `append`,
+  // which can pick the wrong start column when intermediate rows have
+  // been cleared by deleteSlot.
+  const existing = await sheets.spreadsheets.values.get({
     spreadsheetId: SPREADSHEET_ID,
-    range: `${SLOTS_SHEET}!A:L`,
+    range: `${SLOTS_SHEET}!A:A`,
+  });
+  const rowCount = (existing.data.values || []).length;
+  const newRow = rowCount + 1; // first row after the last non-empty row
+
+  await sheets.spreadsheets.values.update({
+    spreadsheetId: SPREADSHEET_ID,
+    range: `${SLOTS_SHEET}!A${newRow}:L${newRow}`,
     valueInputOption: "RAW",
     requestBody: {
       values: [[
@@ -192,9 +203,16 @@ export async function addEvent(event: Omit<Event, "id" | "created_at">): Promise
   const id = genId();
   const created_at = new Date().toISOString();
 
-  await sheets.spreadsheets.values.append({
+  const existing = await sheets.spreadsheets.values.get({
     spreadsheetId: SPREADSHEET_ID,
-    range: `${EVENTS_SHEET}!A:F`,
+    range: `${EVENTS_SHEET}!A:A`,
+  });
+  const rowCount = (existing.data.values || []).length;
+  const newRow = rowCount + 1;
+
+  await sheets.spreadsheets.values.update({
+    spreadsheetId: SPREADSHEET_ID,
+    range: `${EVENTS_SHEET}!A${newRow}:F${newRow}`,
     valueInputOption: "RAW",
     requestBody: {
       values: [[
@@ -287,9 +305,16 @@ export async function addBlock(block: Omit<Block, "id" | "created_at">): Promise
   const id = genId();
   const created_at = new Date().toISOString();
 
-  await sheets.spreadsheets.values.append({
+  const existing = await sheets.spreadsheets.values.get({
     spreadsheetId: SPREADSHEET_ID,
-    range: `${BLOCKS_SHEET}!A:G`,
+    range: `${BLOCKS_SHEET}!A:A`,
+  });
+  const rowCount = (existing.data.values || []).length;
+  const newRow = rowCount + 1;
+
+  await sheets.spreadsheets.values.update({
+    spreadsheetId: SPREADSHEET_ID,
+    range: `${BLOCKS_SHEET}!A${newRow}:G${newRow}`,
     valueInputOption: "RAW",
     requestBody: {
       values: [[
