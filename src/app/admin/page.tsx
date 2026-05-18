@@ -229,19 +229,28 @@ export default function AdminPage() {
 
   const eventById = (id: string) => events.find((e) => e.id === id);
   const now = Date.now();
-  const isFuture = (s: Slot) => new Date(`${s.date}T${s.time}:00+03:00`).getTime() > now;
-  const futureSlots = slots.filter(isFuture);
+  const slotTimeMs = (s: Slot) => new Date(`${s.date}T${s.time}:00+03:00`).getTime();
+  const isFuture = (s: Slot) => slotTimeMs(s) > now;
+  const futureSlots = slots
+    .filter(isFuture)
+    .sort((a, b) => slotTimeMs(a) - slotTimeMs(b));
   const filteredSlots = slotFilter === "all"
     ? futureSlots
     : futureSlots.filter((s) => s.event_id === slotFilter);
   const availableSlots = filteredSlots.filter((s) => s.status === "available");
   const bookedSlots = filteredSlots.filter((s) => s.status === "booked");
   const orphanSlots = futureSlots.filter((s) => !s.event_id);
-  const visibleBlocks = blocks.filter((b) => {
-    if (b.recurring) return true;
-    const end = new Date(`${b.date}T${b.time}:00+03:00`).getTime() + b.duration_minutes * 60000;
-    return end > now;
-  });
+  const visibleBlocks = blocks
+    .filter((b) => {
+      if (b.recurring) return true;
+      const end = new Date(`${b.date}T${b.time}:00+03:00`).getTime() + b.duration_minutes * 60000;
+      return end > now;
+    })
+    .sort((a, b) => {
+      // Recurring blocks last; within group, sort by date+time
+      if (a.recurring !== b.recurring) return a.recurring ? 1 : -1;
+      return new Date(`${a.date}T${a.time}:00+03:00`).getTime() - new Date(`${b.date}T${b.time}:00+03:00`).getTime();
+    });
 
   return (
     <main className="min-h-screen bg-white">
