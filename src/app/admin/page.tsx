@@ -58,7 +58,7 @@ export default function AdminPage() {
   const [slotZoomOverride, setSlotZoomOverride] = useState("");
   const [showZoomOverride, setShowZoomOverride] = useState(false);
   const [slotError, setSlotError] = useState("");
-  const [slotBlockedConflict, setSlotBlockedConflict] = useState(false);
+  const [slotConflictType, setSlotConflictType] = useState<"block" | "slot" | null>(null);
   const [slotFilter, setSlotFilter] = useState("all");
 
   // Block form
@@ -147,7 +147,7 @@ export default function AdminPage() {
   async function handleAddSlot(e: React.FormEvent) {
     e.preventDefault();
     setSlotError("");
-    setSlotBlockedConflict(false);
+    setSlotConflictType(null);
     const res = await fetch("/api/slots", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -165,8 +165,10 @@ export default function AdminPage() {
     if (!res.ok) {
       const data = await res.json();
       setSlotError(data.error || "Ошибка");
-      if (data.conflict_type === "block") {
-        setSlotBlockedConflict(true);
+      if (data.conflict_type === "block" || data.conflict_type === "slot") {
+        setSlotConflictType(data.conflict_type);
+      } else {
+        setSlotConflictType(null);
       }
       return;
     }
@@ -174,7 +176,7 @@ export default function AdminPage() {
     setSlotTime("");
     setSlotZoomOverride("");
     setShowZoomOverride(false);
-    setSlotBlockedConflict(false);
+    setSlotConflictType(null);
     fetchAll();
   }
 
@@ -463,15 +465,28 @@ export default function AdminPage() {
                       <option value="90">90 мин</option>
                     </select>
                   </div>
-                  {slotBlockedConflict ? (
+                  {slotConflictType ? (
                     <div className="bg-amber-50 border border-amber-200 p-4 rounded-xl space-y-3">
                       <div>
-                        <p className="text-sm font-medium text-amber-900">
-                          Аккаунт <span className="font-mono">support@zamesin.ru</span> в это время занят {slotError ? `(${slotError})` : ""}
-                        </p>
-                        <p className="text-xs text-amber-800 mt-1">
-                          Чтобы всё-таки создать слот в это время — используй другой Zoom-аккаунт и вставь его ссылку для встречи ниже. Тогда блокировка не сработает.
-                        </p>
+                        {slotConflictType === "block" ? (
+                          <>
+                            <p className="text-sm font-medium text-amber-900">
+                              Аккаунт <span className="font-mono">support@zamesin.ru</span> в это время занят {slotError ? `(${slotError})` : ""}
+                            </p>
+                            <p className="text-xs text-amber-800 mt-1">
+                              Чтобы всё-таки создать слот в это время — используй другой Zoom-аккаунт и вставь его ссылку для встречи ниже. Тогда блокировка не сработает.
+                            </p>
+                          </>
+                        ) : (
+                          <>
+                            <p className="text-sm font-medium text-amber-900">
+                              На это время уже есть слот {slotError ? `(${slotError})` : ""}
+                            </p>
+                            <p className="text-xs text-amber-800 mt-1">
+                              Один Zoom = один слот в это время. Если хочешь добавить параллельный слот — укажи свою Zoom-ссылку ниже, и тогда оба слота смогут существовать одновременно (каждый на своём Zoom).
+                            </p>
+                          </>
+                        )}
                         {parseInt(slotDuration, 10) > 40 && (
                           <p className="text-xs text-amber-800 mt-2">
                             ⚠️ Слот длиннее 40 минут — для него понадобится Pro-аккаунт Zoom (бесплатный обрывает звонок на 40-й минуте).
@@ -497,7 +512,7 @@ export default function AdminPage() {
                     type="submit"
                     className="px-6 py-2.5 bg-accent text-white rounded-full font-medium hover:bg-accent-hover transition-colors"
                   >
-                    {slotBlockedConflict && slotZoomOverride ? "Создать с этим Zoom" : "Добавить слот"}
+                    {slotConflictType && slotZoomOverride ? "Создать с этим Zoom" : "Добавить слот"}
                   </button>
                 </form>
               )}
