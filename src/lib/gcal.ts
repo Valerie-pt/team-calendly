@@ -17,6 +17,7 @@ export async function createCalendarEvent(params: {
   time: string;
   duration_minutes: number;
   zoom_link: string;
+  event_name?: string;
 }) {
   const calendar = getCalendar();
 
@@ -32,8 +33,12 @@ export async function createCalendarEvent(params: {
     `Zoom: ${params.zoom_link}`,
   ].filter(Boolean).join("\n");
 
+  const summary = params.event_name
+    ? `${params.event_name}: ${params.candidate_name}`
+    : `Интервью: ${params.candidate_name}`;
+
   const baseEvent = {
-    summary: `Интервью: ${params.candidate_name}`,
+    summary,
     description,
     location: params.zoom_link,
     start: { dateTime: startDateTime, timeZone: "Europe/Moscow" },

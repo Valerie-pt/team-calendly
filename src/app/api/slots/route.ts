@@ -108,6 +108,7 @@ export async function POST(request: NextRequest) {
         time: targetSlot.time,
         duration_minutes: targetSlot.duration_minutes,
         zoom_link: zoomLink,
+        event_name: slotEvent?.name || "",
       });
 
       return Response.json({ success: true });

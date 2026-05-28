@@ -148,8 +148,12 @@ async function main() {
       `Zoom: ${zoomLink}`,
     ].filter(Boolean).join("\n");
 
+    const summary = event?.name
+      ? `${event.name}: ${slot.candidate_name}`
+      : `Интервью: ${slot.candidate_name}`;
+
     const baseEvent = {
-      summary: `Интервью: ${slot.candidate_name}`,
+      summary,
       description,
       location: zoomLink,
       start: { dateTime: startIso, timeZone: "Europe/Moscow" },
