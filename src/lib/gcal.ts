@@ -59,13 +59,17 @@ export async function createCalendarEvent(params: {
     console.error("Failed to create event in interviewer calendar:", error);
   }
 
-  // 2. Also create event in the shared "Zamesin Team" calendar so the whole team sees it
+  // 2. Also create event in the shared "Zamesin Team" calendar so the whole team sees it.
+  // We omit `attendees` here because service accounts without Domain-Wide
+  // Delegation are not allowed to set attendees on calendar events — Google
+  // rejects the whole insert otherwise. Names/emails are already in description.
   if (SHARED_CALENDAR_ID) {
     try {
+      const { attendees: _attendees, ...sharedEvent } = baseEvent;
       await calendar.events.insert({
         calendarId: SHARED_CALENDAR_ID,
-        requestBody: baseEvent,
-        sendUpdates: "none", // don't double-invite — the personal calendar above already invited attendees
+        requestBody: sharedEvent,
+        sendUpdates: "none",
       });
     } catch (error) {
       console.error("Failed to create event in shared calendar:", error);
