@@ -655,12 +655,6 @@ export default function AdminPage() {
                     </div>
                   )}
 
-                  {parseInt(slotDuration, 10) > 40 && (
-                    <p className="text-xs text-amber-800 bg-amber-50 border border-amber-200 p-3 rounded-xl">
-                      ⚠️ Слот длиннее 40 минут — нужен Pro-аккаунт Zoom (на бесплатном звонок обрывается на 40-й минуте).
-                    </p>
-                  )}
-
                   {slotError && (
                     <p className="text-red-600 text-sm bg-red-50 p-3 rounded-xl">
                       {slotError}
