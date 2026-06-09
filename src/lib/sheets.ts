@@ -154,6 +154,67 @@ export async function bookSlot(slotId: string, candidateName: string, candidateE
   return true;
 }
 
+export const CANCEL_RELEASE_LEAD_HOURS = 4;
+
+export type CancelBookingResult =
+  | { ok: true; action: "released" }
+  | { ok: true; action: "deleted" }
+  | { ok: false; reason: "not_found" | "not_booked" };
+
+/**
+ * Cancel a booked slot.
+ *
+ * - If the slot's start is more than CANCEL_RELEASE_LEAD_HOURS in the future,
+ *   keep the row but clear candidate fields and set status back to "available"
+ *   so the slot returns to the pool.
+ * - Otherwise (the slot is soon / past) just clear the row — there's no point
+ *   leaving it available since the public page already filters by lead time.
+ */
+export async function cancelBooking(slotId: string): Promise<CancelBookingResult> {
+  const sheets = getSheets();
+  const res = await sheets.spreadsheets.values.get({
+    spreadsheetId: SPREADSHEET_ID,
+    range: `${SLOTS_SHEET}!A2:L`,
+  });
+  const rows = res.data.values || [];
+  const rowIndex = rows.findIndex((row) => row[0] === slotId);
+  if (rowIndex === -1) return { ok: false, reason: "not_found" };
+
+  const row = rows[rowIndex];
+  if (row[6] !== "booked") return { ok: false, reason: "not_booked" };
+
+  const date = row[3];
+  const time = row[4];
+  const startMs = new Date(`${date}T${time}:00+03:00`).getTime();
+  const leadMs = CANCEL_RELEASE_LEAD_HOURS * 60 * 60 * 1000;
+
+  const sheetRow = rowIndex + 2;
+
+  if (startMs - Date.now() > leadMs) {
+    // Release back to pool
+    await sheets.spreadsheets.values.update({
+      spreadsheetId: SPREADSHEET_ID,
+      range: `${SLOTS_SHEET}!G${sheetRow}:J${sheetRow}`,
+      valueInputOption: "RAW",
+      requestBody: {
+        values: [["available", "", "", ""]],
+      },
+    });
+    return { ok: true, action: "released" };
+  }
+
+  // Too late to re-book → clear the row
+  await sheets.spreadsheets.values.update({
+    spreadsheetId: SPREADSHEET_ID,
+    range: `${SLOTS_SHEET}!A${sheetRow}:L${sheetRow}`,
+    valueInputOption: "RAW",
+    requestBody: {
+      values: [["", "", "", "", "", "", "", "", "", "", "", ""]],
+    },
+  });
+  return { ok: true, action: "deleted" };
+}
+
 export async function deleteSlot(slotId: string): Promise<boolean> {
   const sheets = getSheets();
   const res = await sheets.spreadsheets.values.get({

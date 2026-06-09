@@ -1,5 +1,5 @@
 import { NextRequest } from "next/server";
-import { getSlots, addSlot, bookSlot, deleteSlot, getEvents, getBlocks } from "@/lib/sheets";
+import { getSlots, addSlot, bookSlot, deleteSlot, cancelBooking, getEvents, getBlocks } from "@/lib/sheets";
 import { createCalendarEvent } from "@/lib/gcal";
 import { isAuthenticated } from "@/lib/auth";
 import { findSlotConflict, isTooSoonForBooking, effectiveZoomLink, MIN_BOOKING_LEAD_HOURS } from "@/lib/conflict";
@@ -127,6 +127,21 @@ export async function POST(request: NextRequest) {
         return Response.json({ error: "Slot not found" }, { status: 404 });
       }
       return Response.json({ success: true });
+    }
+
+    if (action === "cancel") {
+      if (!isAuthenticated(request)) {
+        return Response.json({ error: "Unauthorized" }, { status: 401 });
+      }
+      const { slotId } = body;
+      if (!slotId) {
+        return Response.json({ error: "Missing slotId" }, { status: 400 });
+      }
+      const result = await cancelBooking(slotId);
+      if (!result.ok) {
+        return Response.json({ error: result.reason }, { status: 404 });
+      }
+      return Response.json({ success: true, action: result.action });
     }
 
     return Response.json({ error: "Invalid action" }, { status: 400 });

@@ -200,6 +200,21 @@ export default function AdminPage() {
     fetchAll();
   }
 
+  async function handleCancelBooking(slot: Slot) {
+    const startMs = new Date(`${slot.date}T${slot.time}:00+03:00`).getTime();
+    const willRelease = startMs - Date.now() > 4 * 60 * 60 * 1000;
+    const question = willRelease
+      ? `Отменить бронирование ${slot.candidate_name}? Слот вернётся в пул свободных — другой респондент сможет на него записаться.`
+      : `Отменить бронирование ${slot.candidate_name}? До встречи меньше 4 часов — слот будет удалён (повторно забронировать не успеют).`;
+    if (!confirm(question)) return;
+    await fetch("/api/slots", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "cancel", slotId: slot.id }),
+    });
+    fetchAll();
+  }
+
   async function handleAddBlock(e: React.FormEvent) {
     e.preventDefault();
     await fetch("/api/blocks", {
@@ -876,18 +891,26 @@ export default function AdminPage() {
                     const slotZoom = s.zoom_link || ev?.zoom_link || DEFAULT_ZOOM;
                     const slotAcc = accountByLink(slotZoom);
                     return (
-                      <div key={s.id} className="bg-white rounded-xl px-4 py-3 opacity-75">
-                        <p className="font-medium text-foreground">
-                          {formatDate(s.date)} в {s.time}
-                          <span className="text-text-secondary font-normal ml-2 text-sm">{s.duration_minutes} мин</span>
-                          {slotAcc && (
-                            <span className="text-text-secondary font-normal ml-2 text-xs">· {slotAcc.email}</span>
-                          )}
-                        </p>
-                        <p className="text-xs text-text-secondary">
-                          {ev?.name || "—"} · {s.interviewer_name} → {s.candidate_name} ({s.candidate_email})
-                          {s.candidate_telegram && <> · TG: {s.candidate_telegram}</>}
-                        </p>
+                      <div key={s.id} className="bg-white rounded-xl px-4 py-3 flex items-start justify-between gap-3">
+                        <div className="min-w-0 flex-1">
+                          <p className="font-medium text-foreground">
+                            {formatDate(s.date)} в {s.time}
+                            <span className="text-text-secondary font-normal ml-2 text-sm">{s.duration_minutes} мин</span>
+                            {slotAcc && (
+                              <span className="text-text-secondary font-normal ml-2 text-xs">· {slotAcc.email}</span>
+                            )}
+                          </p>
+                          <p className="text-xs text-text-secondary">
+                            {ev?.name || "—"} · {s.interviewer_name} → {s.candidate_name} ({s.candidate_email})
+                            {s.candidate_telegram && <> · TG: {s.candidate_telegram}</>}
+                          </p>
+                        </div>
+                        <button
+                          onClick={() => handleCancelBooking(s)}
+                          className="px-3 py-1.5 text-xs text-red-600 hover:bg-red-50 rounded-full transition-colors flex-shrink-0"
+                        >
+                          Отменить
+                        </button>
                       </div>
                     );
                   })}
