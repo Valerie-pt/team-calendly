@@ -87,3 +87,64 @@ export async function createCalendarEvent(params: {
 function toMSKIso(date: string, time: string): string {
   return `${date}T${time}:00+03:00`;
 }
+
+/**
+ * Best-effort deletion of the calendar event(s) created for a booking.
+ *
+ * - Removes the event from the shared "Zamesin Team" calendar (if configured)
+ *   by listing events at that time and matching by candidate name in the
+ *   summary.
+ * - Also attempts to remove it from the interviewer's personal calendar
+ *   (will silently fail if the interviewer hasn't shared their calendar
+ *   with the service account).
+ *
+ * All deletes use sendUpdates="none" so no email notifications are sent.
+ */
+export async function deleteCalendarEvent(params: {
+  interviewer_email: string;
+  candidate_name: string;
+  date: string;
+  time: string;
+  duration_minutes: number;
+}) {
+  const calendar = getCalendar();
+  const startIso = toMSKIso(params.date, params.time);
+  const endIso = new Date(new Date(startIso).getTime() + params.duration_minutes * 60000).toISOString();
+
+  async function deleteFromCalendar(calendarId: string) {
+    try {
+      const list = await calendar.events.list({
+        calendarId,
+        timeMin: startIso,
+        timeMax: endIso,
+        singleEvents: true,
+        maxResults: 25,
+      });
+      const matches = (list.data.items || []).filter((ev) =>
+        (ev.summary || "").includes(params.candidate_name)
+      );
+      for (const ev of matches) {
+        if (!ev.id) continue;
+        try {
+          await calendar.events.delete({
+            calendarId,
+            eventId: ev.id,
+            sendUpdates: "none",
+          });
+        } catch (err) {
+          console.warn(`Failed to delete event ${ev.id} from ${calendarId}:`, (err as Error).message);
+        }
+      }
+    } catch (err) {
+      // Listing itself failed (no access, calendar missing, etc.)
+      console.warn(`Could not list events in ${calendarId}:`, (err as Error).message);
+    }
+  }
+
+  if (SHARED_CALENDAR_ID) {
+    await deleteFromCalendar(SHARED_CALENDAR_ID);
+  }
+  if (params.interviewer_email) {
+    await deleteFromCalendar(params.interviewer_email);
+  }
+}

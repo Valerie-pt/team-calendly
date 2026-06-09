@@ -1,6 +1,6 @@
 import { NextRequest } from "next/server";
 import { getSlots, addSlot, bookSlot, deleteSlot, cancelBooking, getEvents, getBlocks } from "@/lib/sheets";
-import { createCalendarEvent } from "@/lib/gcal";
+import { createCalendarEvent, deleteCalendarEvent } from "@/lib/gcal";
 import { isAuthenticated } from "@/lib/auth";
 import { findSlotConflict, isTooSoonForBooking, effectiveZoomLink, MIN_BOOKING_LEAD_HOURS } from "@/lib/conflict";
 
@@ -137,10 +137,31 @@ export async function POST(request: NextRequest) {
       if (!slotId) {
         return Response.json({ error: "Missing slotId" }, { status: 400 });
       }
+
+      // Snapshot booking data BEFORE clearing the row so we can find and
+      // delete the matching calendar event.
+      const slotsBefore = await getSlots();
+      const targetForCancel = slotsBefore.find((s) => s.id === slotId);
+      if (!targetForCancel) {
+        return Response.json({ error: "not_found" }, { status: 404 });
+      }
+
       const result = await cancelBooking(slotId);
       if (!result.ok) {
         return Response.json({ error: result.reason }, { status: 404 });
       }
+
+      // Best-effort calendar cleanup. Silent (sendUpdates="none").
+      if (targetForCancel.candidate_name && targetForCancel.interviewer_email) {
+        await deleteCalendarEvent({
+          interviewer_email: targetForCancel.interviewer_email,
+          candidate_name: targetForCancel.candidate_name,
+          date: targetForCancel.date,
+          time: targetForCancel.time,
+          duration_minutes: targetForCancel.duration_minutes,
+        });
+      }
+
       return Response.json({ success: true, action: result.action });
     }
 
