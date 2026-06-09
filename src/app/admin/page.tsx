@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import type { Slot, Event, Block } from "@/lib/sheets";
+import { useEffect, useMemo, useState } from "react";
+import type { Slot, Event, Block, ZoomAccount } from "@/lib/sheets";
+import { accountsAvailability } from "@/lib/conflict";
 
 const MONTHS_GENITIVE = [
   "января", "февраля", "марта", "апреля", "мая", "июня",
@@ -33,11 +34,19 @@ function slugify(name: string) {
     .replace(/^-|-$/g, "");
 }
 
+const DEFAULT_ZOOM = process.env.NEXT_PUBLIC_ZOOM_LINK || "";
+
 export default function AdminPage() {
   const [events, setEvents] = useState<Event[]>([]);
   const [slots, setSlots] = useState<Slot[]>([]);
   const [blocks, setBlocks] = useState<Block[]>([]);
+  const [zoomAccounts, setZoomAccounts] = useState<ZoomAccount[]>([]);
   const [loading, setLoading] = useState(true);
+
+  // Zoom account form
+  const [zaEmail, setZaEmail] = useState("");
+  const [zaLink, setZaLink] = useState("");
+  const [zaNotes, setZaNotes] = useState("");
 
   // Event form
   const [eventName, setEventName] = useState("");
@@ -55,8 +64,7 @@ export default function AdminPage() {
   const [slotDate, setSlotDate] = useState("");
   const [slotTime, setSlotTime] = useState("");
   const [slotDuration, setSlotDuration] = useState("30");
-  const [slotZoomOverride, setSlotZoomOverride] = useState("");
-  const [showZoomOverride, setShowZoomOverride] = useState(false);
+  const [slotZoomLink, setSlotZoomLink] = useState("");
   const [slotError, setSlotError] = useState("");
   const [slotConflictType, setSlotConflictType] = useState<"block" | "slot" | null>(null);
   const [slotFilter, setSlotFilter] = useState("all");
@@ -67,21 +75,25 @@ export default function AdminPage() {
   const [blockDuration, setBlockDuration] = useState("60");
   const [blockRecurring, setBlockRecurring] = useState(false);
   const [blockLabel, setBlockLabel] = useState("");
+  const [blockZoomLink, setBlockZoomLink] = useState("");
 
   async function fetchAll() {
     setLoading(true);
     try {
-      const [eRes, sRes, bRes] = await Promise.all([
+      const [eRes, sRes, bRes, zRes] = await Promise.all([
         fetch("/api/events"),
         fetch("/api/slots"),
         fetch("/api/blocks"),
+        fetch("/api/zoom-accounts"),
       ]);
       const evs: Event[] = await eRes.json();
       const sls: Slot[] = await sRes.json();
       const blks: Block[] = await bRes.json();
+      const zas: ZoomAccount[] = zRes.ok ? await zRes.json() : [];
       setEvents(evs.filter((e) => e.id));
       setSlots(sls.filter((s) => s.id));
       setBlocks(blks.filter((b) => b.id));
+      setZoomAccounts(zas.filter((z) => z.id));
     } catch {
       // silently fail
     } finally {
@@ -159,7 +171,7 @@ export default function AdminPage() {
         date: slotDate,
         time: slotTime,
         duration_minutes: parseInt(slotDuration, 10),
-        zoom_link: showZoomOverride ? slotZoomOverride : "",
+        zoom_link: slotZoomLink,
       }),
     });
     if (!res.ok) {
@@ -174,8 +186,7 @@ export default function AdminPage() {
     }
     setSlotDate("");
     setSlotTime("");
-    setSlotZoomOverride("");
-    setShowZoomOverride(false);
+    setSlotZoomLink("");
     setSlotConflictType(null);
     fetchAll();
   }
@@ -201,8 +212,10 @@ export default function AdminPage() {
         duration_minutes: parseInt(blockDuration, 10),
         recurring: blockRecurring,
         label: blockLabel,
+        zoom_link: blockZoomLink,
       }),
     });
+    setBlockZoomLink("");
     setBlockDate("");
     setBlockTime("");
     setBlockLabel("");
@@ -215,6 +228,35 @@ export default function AdminPage() {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ action: "delete", blockId: id }),
+    });
+    fetchAll();
+  }
+
+  async function handleAddZoomAccount(e: React.FormEvent) {
+    e.preventDefault();
+    const res = await fetch("/api/zoom-accounts", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        action: "add",
+        email: zaEmail,
+        zoom_link: zaLink,
+        notes: zaNotes,
+      }),
+    });
+    if (!res.ok) return;
+    setZaEmail("");
+    setZaLink("");
+    setZaNotes("");
+    fetchAll();
+  }
+
+  async function handleDeleteZoomAccount(id: string) {
+    if (!confirm("Удалить Zoom-аккаунт? Существующие слоты/блокировки с этой ссылкой останутся.")) return;
+    await fetch("/api/zoom-accounts", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "delete", accountId: id }),
     });
     fetchAll();
   }
@@ -236,6 +278,37 @@ export default function AdminPage() {
   const futureSlots = slots
     .filter(isFuture)
     .sort((a, b) => slotTimeMs(a) - slotTimeMs(b));
+
+  const accountByLink = (link: string) =>
+    zoomAccounts.find((a) => a.zoom_link.trim().toLowerCase() === link.trim().toLowerCase());
+
+  const slotAccountsAvailability = useMemo(() => {
+    if (!slotDate || !slotTime || zoomAccounts.length === 0) return {};
+    return accountsAvailability({
+      date: slotDate,
+      time: slotTime,
+      duration: parseInt(slotDuration, 10) || 30,
+      zoomLinks: zoomAccounts.map((a) => a.zoom_link),
+      slots,
+      blocks,
+      events,
+      defaultZoom: DEFAULT_ZOOM,
+    });
+  }, [slotDate, slotTime, slotDuration, zoomAccounts, slots, blocks, events]);
+
+  const blockAccountsAvailability = useMemo(() => {
+    if (!blockDate || !blockTime || zoomAccounts.length === 0) return {};
+    return accountsAvailability({
+      date: blockDate,
+      time: blockTime,
+      duration: parseInt(blockDuration, 10) || 60,
+      zoomLinks: zoomAccounts.map((a) => a.zoom_link),
+      slots,
+      blocks,
+      events,
+      defaultZoom: DEFAULT_ZOOM,
+    });
+  }, [blockDate, blockTime, blockDuration, zoomAccounts, slots, blocks, events]);
   const filteredSlots = slotFilter === "all"
     ? futureSlots
     : futureSlots.filter((s) => s.event_id === slotFilter);
@@ -400,6 +473,70 @@ export default function AdminPage() {
               )}
             </section>
 
+            {/* ZOOM ACCOUNTS */}
+            <section className="bg-card-bg rounded-2xl p-6 sm:p-8 mb-10">
+              <h2 className="text-lg font-semibold text-foreground mb-1">Zoom-аккаунты</h2>
+              <p className="text-sm text-text-secondary mb-5">
+                Пул Zoom-аккаунтов команды. При создании слота можно выбрать один из них — система покажет, какие свободны в указанное время.
+              </p>
+
+              <form onSubmit={handleAddZoomAccount} className="space-y-3 mb-6">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <input
+                    type="email"
+                    required
+                    value={zaEmail}
+                    onChange={(e) => setZaEmail(e.target.value)}
+                    className="px-4 py-2.5 bg-white border border-border rounded-xl focus:ring-2 focus:ring-accent focus:border-transparent outline-none text-foreground"
+                    placeholder="email (например, support@zamesin.ru)"
+                  />
+                  <input
+                    type="url"
+                    required
+                    value={zaLink}
+                    onChange={(e) => setZaLink(e.target.value)}
+                    className="px-4 py-2.5 bg-white border border-border rounded-xl focus:ring-2 focus:ring-accent focus:border-transparent outline-none text-foreground"
+                    placeholder="https://zoom.us/j/..."
+                  />
+                </div>
+                <input
+                  type="text"
+                  value={zaNotes}
+                  onChange={(e) => setZaNotes(e.target.value)}
+                  className="w-full px-4 py-2.5 bg-white border border-border rounded-xl focus:ring-2 focus:ring-accent focus:border-transparent outline-none text-foreground"
+                  placeholder="Заметка — например, «Ключ организатора: 615274» (необязательно)"
+                />
+                <button
+                  type="submit"
+                  className="px-6 py-2.5 bg-accent text-white rounded-full font-medium hover:bg-accent-hover transition-colors"
+                >
+                  Добавить аккаунт
+                </button>
+              </form>
+
+              {zoomAccounts.length === 0 ? (
+                <p className="text-text-secondary text-sm">Пока нет ни одного аккаунта</p>
+              ) : (
+                <div className="space-y-2">
+                  {zoomAccounts.map((acc) => (
+                    <div key={acc.id} className="bg-white rounded-xl px-4 py-3 flex items-start justify-between gap-3">
+                      <div className="min-w-0 flex-1">
+                        <p className="font-medium text-foreground">{acc.email}</p>
+                        <p className="text-xs text-text-secondary truncate">{acc.zoom_link}</p>
+                        {acc.notes && <p className="text-xs text-text-secondary mt-0.5">{acc.notes}</p>}
+                      </div>
+                      <button
+                        onClick={() => handleDeleteZoomAccount(acc.id)}
+                        className="px-3 py-1.5 text-xs text-red-600 hover:bg-red-50 rounded-full transition-colors flex-shrink-0"
+                      >
+                        Удалить
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </section>
+
             {/* SLOTS */}
             <section className="bg-card-bg rounded-2xl p-6 sm:p-8 mb-10">
               <h2 className="text-lg font-semibold text-foreground mb-1">Слоты</h2>
@@ -465,54 +602,82 @@ export default function AdminPage() {
                       <option value="90">90 мин</option>
                     </select>
                   </div>
-                  {slotConflictType ? (
-                    <div className="bg-amber-50 border border-amber-200 p-4 rounded-xl space-y-3">
-                      <div>
-                        {slotConflictType === "block" ? (
-                          <>
-                            <p className="text-sm font-medium text-amber-900">
-                              Аккаунт <span className="font-mono">support@zamesin.ru</span> в это время занят {slotError ? `(${slotError})` : ""}
-                            </p>
-                            <p className="text-xs text-amber-800 mt-1">
-                              Чтобы всё-таки создать слот в это время — используй другой Zoom-аккаунт и вставь его ссылку для встречи ниже. Тогда блокировка не сработает.
-                            </p>
-                          </>
-                        ) : (
-                          <>
-                            <p className="text-sm font-medium text-amber-900">
-                              На это время уже есть слот {slotError ? `(${slotError})` : ""}
-                            </p>
-                            <p className="text-xs text-amber-800 mt-1">
-                              Один Zoom = один слот в это время. Если хочешь добавить параллельный слот — укажи свою Zoom-ссылку ниже, и тогда оба слота смогут существовать одновременно (каждый на своём Zoom).
-                            </p>
-                          </>
-                        )}
-                        {parseInt(slotDuration, 10) > 40 && (
-                          <p className="text-xs text-amber-800 mt-2">
-                            ⚠️ Слот длиннее 40 минут — для него понадобится Pro-аккаунт Zoom (бесплатный обрывает звонок на 40-й минуте).
-                          </p>
-                        )}
+
+                  {/* Zoom account picker with availability badges */}
+                  {zoomAccounts.length === 0 ? (
+                    <p className="text-xs text-text-secondary">
+                      Добавь хотя бы один Zoom-аккаунт в секции «Zoom-аккаунты» ниже, чтобы выбирать его для слота.
+                    </p>
+                  ) : (
+                    <div className="space-y-2">
+                      <label className="block text-sm font-medium text-foreground">Zoom-аккаунт</label>
+                      {!slotDate || !slotTime ? (
+                        <p className="text-xs text-text-secondary">Сначала укажи дату и время — покажу, какие аккаунты свободны</p>
+                      ) : null}
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                        {zoomAccounts.map((acc) => {
+                          const status = slotAccountsAvailability[acc.zoom_link];
+                          const busy = status?.conflict;
+                          const selected = slotZoomLink === acc.zoom_link;
+                          return (
+                            <button
+                              type="button"
+                              key={acc.id}
+                              onClick={() => setSlotZoomLink(acc.zoom_link)}
+                              className={`text-left p-3 rounded-xl border transition-colors ${
+                                selected
+                                  ? "bg-accent/10 border-accent"
+                                  : busy
+                                    ? "bg-red-50 border-red-200 hover:bg-red-100"
+                                    : "bg-white border-border hover:border-accent/40"
+                              }`}
+                            >
+                              <div className="flex items-center justify-between gap-2">
+                                <span className="text-sm font-medium text-foreground truncate">{acc.email}</span>
+                                {slotDate && slotTime && (
+                                  <span className={`text-xs px-2 py-0.5 rounded-full whitespace-nowrap ${
+                                    busy ? "bg-red-100 text-red-700" : "bg-green-100 text-green-700"
+                                  }`}>
+                                    {busy ? "занят" : "свободен"}
+                                  </span>
+                                )}
+                              </div>
+                              {busy && status?.reason && (
+                                <p className="text-xs text-red-700 mt-1 line-clamp-2">{status.reason}</p>
+                              )}
+                              {acc.notes && (
+                                <p className="text-xs text-text-secondary mt-1 truncate">{acc.notes}</p>
+                              )}
+                            </button>
+                          );
+                        })}
                       </div>
-                      <input
-                        type="url"
-                        required
-                        value={slotZoomOverride}
-                        onChange={(e) => {
-                          setSlotZoomOverride(e.target.value);
-                          setShowZoomOverride(true);
-                        }}
-                        className="w-full px-4 py-2.5 bg-white border border-amber-300 rounded-xl focus:ring-2 focus:ring-accent focus:border-transparent outline-none text-foreground"
-                        placeholder="https://zoom.us/j/... (своя Zoom-ссылка для этого слота)"
-                      />
                     </div>
-                  ) : slotError && (
-                    <p className="text-red-600 text-sm bg-red-50 p-3 rounded-xl">{slotError}</p>
                   )}
+
+                  {parseInt(slotDuration, 10) > 40 && (
+                    <p className="text-xs text-amber-800 bg-amber-50 border border-amber-200 p-3 rounded-xl">
+                      ⚠️ Слот длиннее 40 минут — нужен Pro-аккаунт Zoom (на бесплатном звонок обрывается на 40-й минуте).
+                    </p>
+                  )}
+
+                  {slotError && (
+                    <p className="text-red-600 text-sm bg-red-50 p-3 rounded-xl">
+                      {slotError}
+                      {slotConflictType && (
+                        <span className="block text-xs text-red-700 mt-1">
+                          Выбери другой Zoom-аккаунт выше — тот, что помечен «свободен».
+                        </span>
+                      )}
+                    </p>
+                  )}
+
                   <button
                     type="submit"
-                    className="px-6 py-2.5 bg-accent text-white rounded-full font-medium hover:bg-accent-hover transition-colors"
+                    disabled={!slotZoomLink}
+                    className="px-6 py-2.5 bg-accent text-white rounded-full font-medium hover:bg-accent-hover disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                   >
-                    {slotConflictType && slotZoomOverride ? "Создать с этим Zoom" : "Добавить слот"}
+                    Добавить слот
                   </button>
                 </form>
               )}
@@ -538,6 +703,8 @@ export default function AdminPage() {
                   <div className="space-y-2">
                     {availableSlots.map((s) => {
                       const ev = eventById(s.event_id);
+                      const slotZoom = s.zoom_link || ev?.zoom_link || DEFAULT_ZOOM;
+                      const slotAcc = accountByLink(slotZoom);
                       return (
                         <div key={s.id} className="bg-white rounded-xl px-4 py-3 flex items-center justify-between gap-3">
                           <div className="min-w-0 flex-1">
@@ -547,6 +714,7 @@ export default function AdminPage() {
                             </p>
                             <p className="text-xs text-text-secondary truncate">
                               {ev?.name || "—"} · {s.interviewer_name}
+                              {slotAcc && ` · ${slotAcc.email}`}
                             </p>
                           </div>
                           <button
@@ -620,9 +788,49 @@ export default function AdminPage() {
                   />
                   Повторять каждую неделю в этот же день
                 </label>
+
+                {zoomAccounts.length > 0 && (
+                  <div className="space-y-2">
+                    <label className="block text-sm font-medium text-foreground">
+                      Какой Zoom-аккаунт занят
+                    </label>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                      {zoomAccounts.map((acc) => {
+                        const status = blockAccountsAvailability[acc.zoom_link];
+                        const busy = status?.conflict;
+                        const selected = blockZoomLink === acc.zoom_link;
+                        return (
+                          <button
+                            type="button"
+                            key={acc.id}
+                            onClick={() => setBlockZoomLink(acc.zoom_link)}
+                            className={`text-left p-3 rounded-xl border transition-colors ${
+                              selected
+                                ? "bg-accent/10 border-accent"
+                                : "bg-white border-border hover:border-accent/40"
+                            }`}
+                          >
+                            <div className="flex items-center justify-between gap-2">
+                              <span className="text-sm font-medium text-foreground truncate">{acc.email}</span>
+                              {blockDate && blockTime && (
+                                <span className={`text-xs px-2 py-0.5 rounded-full whitespace-nowrap ${
+                                  busy ? "bg-red-100 text-red-700" : "bg-green-100 text-green-700"
+                                }`}>
+                                  {busy ? "уже занят" : "сейчас свободен"}
+                                </span>
+                              )}
+                            </div>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+
                 <button
                   type="submit"
-                  className="px-6 py-2.5 bg-accent text-white rounded-full font-medium hover:bg-accent-hover transition-colors"
+                  disabled={zoomAccounts.length > 0 && !blockZoomLink}
+                  className="px-6 py-2.5 bg-accent text-white rounded-full font-medium hover:bg-accent-hover disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                 >
                   Заблокировать
                 </button>
@@ -634,6 +842,7 @@ export default function AdminPage() {
                 <div className="space-y-2">
                   {visibleBlocks.map((b) => {
                     const d = new Date(b.date + "T00:00:00");
+                    const blockAcc = b.zoom_link ? accountByLink(b.zoom_link) : null;
                     return (
                       <div key={b.id} className="bg-white rounded-xl px-4 py-3 flex items-center justify-between gap-3">
                         <div className="min-w-0 flex-1">
@@ -643,7 +852,10 @@ export default function AdminPage() {
                               : `${formatDate(b.date)} в ${b.time}`}
                             <span className="text-text-secondary font-normal ml-2 text-sm">{b.duration_minutes} мин</span>
                           </p>
-                          {b.label && <p className="text-xs text-text-secondary truncate">{b.label}</p>}
+                          <p className="text-xs text-text-secondary truncate">
+                            {blockAcc?.email || "(аккаунт не указан)"}
+                            {b.label && ` · ${b.label}`}
+                          </p>
                         </div>
                         <button
                           onClick={() => handleDeleteBlock(b.id)}
@@ -667,11 +879,16 @@ export default function AdminPage() {
                 <div className="space-y-2">
                   {bookedSlots.map((s) => {
                     const ev = eventById(s.event_id);
+                    const slotZoom = s.zoom_link || ev?.zoom_link || DEFAULT_ZOOM;
+                    const slotAcc = accountByLink(slotZoom);
                     return (
                       <div key={s.id} className="bg-white rounded-xl px-4 py-3 opacity-75">
                         <p className="font-medium text-foreground">
                           {formatDate(s.date)} в {s.time}
                           <span className="text-text-secondary font-normal ml-2 text-sm">{s.duration_minutes} мин</span>
+                          {slotAcc && (
+                            <span className="text-text-secondary font-normal ml-2 text-xs">· {slotAcc.email}</span>
+                          )}
                         </p>
                         <p className="text-xs text-text-secondary">
                           {ev?.name || "—"} · {s.interviewer_name} → {s.candidate_name} ({s.candidate_email})

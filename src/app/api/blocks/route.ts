@@ -24,7 +24,7 @@ export async function POST(request: NextRequest) {
     const { action } = body;
 
     if (action === "add") {
-      const { date, time, duration_minutes, recurring, label } = body;
+      const { date, time, duration_minutes, recurring, label, zoom_link } = body;
       if (!date || !time) {
         return Response.json({ error: "Missing required fields" }, { status: 400 });
       }
@@ -34,6 +34,7 @@ export async function POST(request: NextRequest) {
         duration_minutes: duration_minutes || 30,
         recurring: !!recurring,
         label: label || "",
+        zoom_link: zoom_link || "",
       });
       return Response.json({ id });
     }

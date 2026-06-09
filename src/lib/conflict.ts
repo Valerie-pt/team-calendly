@@ -30,12 +30,28 @@ export function effectiveZoomLink(
   return (slotZoom && slotZoom.trim()) || (event?.zoom_link || "").trim() || defaultZoom;
 }
 
+function normalizeZoom(link: string): string {
+  return (link || "").trim().toLowerCase();
+}
+
+function dayOfWeekMatchesRecurring(targetIsoDate: string, recurringStartIsoDate: string): boolean {
+  const target = new Date(targetIsoDate + "T00:00:00");
+  const recurringStart = new Date(recurringStartIsoDate + "T00:00:00");
+  if (target < recurringStart) return false;
+  return target.getDay() === recurringStart.getDay();
+}
+
 export interface ConflictCheck {
   conflict: boolean;
   type?: "slot" | "block";
   reason?: string;
 }
 
+/**
+ * Check whether a new slot at (date, time, duration) conflicts with anything
+ * in the pool that uses the SAME Zoom link. Slots/blocks on a different Zoom
+ * link don't conflict because they happen on a different account.
+ */
 export function findSlotConflict(params: {
   date: string;
   time: string;
@@ -49,49 +65,39 @@ export function findSlotConflict(params: {
 }): ConflictCheck {
   const { date, time, duration, newSlotZoom, slots, blocks, events, defaultZoom, excludeSlotId } = params;
 
-  // Two slots conflict only if they use the same effective Zoom link.
   const eventById = new Map(events.map((e) => [e.id, e]));
+  const newZoom = normalizeZoom(newSlotZoom);
 
   for (const s of slots) {
     if (!s.id || s.id === excludeSlotId) continue;
     if (s.date !== date) continue;
     if (!intervalsOverlap(s.time, s.duration_minutes, time, duration)) continue;
 
-    const existingZoom = effectiveZoomLink(s.zoom_link, eventById.get(s.event_id), defaultZoom);
-    if (existingZoom === newSlotZoom) {
+    const existingZoom = normalizeZoom(effectiveZoomLink(s.zoom_link, eventById.get(s.event_id), defaultZoom));
+    if (existingZoom === newZoom) {
       return {
         conflict: true,
         type: "slot",
-        reason: `На ${date} в ${s.time} уже есть слот (${s.duration_minutes} мин) на этом же Zoom`,
+        reason: `На ${date} в ${s.time} уже есть слот (${s.duration_minutes} мин) на этом же Zoom-аккаунте`,
       };
     }
   }
 
-  // Blocks reflect the DEFAULT Zoom account being busy. If the new slot uses
-  // a non-default Zoom link, blocks don't apply.
-  if (newSlotZoom !== defaultZoom) {
-    return { conflict: false };
-  }
+  for (const b of blocks) {
+    const blockZoom = normalizeZoom(b.zoom_link || defaultZoom);
+    if (blockZoom !== newZoom) continue;
+    if (!intervalsOverlap(b.time, b.duration_minutes, time, duration)) continue;
 
-  // One-time blocks
-  for (const b of blocks.filter((x) => !x.recurring)) {
-    if (b.date !== date) continue;
-    if (intervalsOverlap(b.time, b.duration_minutes, time, duration)) {
+    if (b.recurring) {
+      if (!dayOfWeekMatchesRecurring(date, b.date)) continue;
       return {
         conflict: true,
         type: "block",
         reason: b.label || "",
       };
     }
-  }
 
-  // Recurring weekly blocks
-  const target = new Date(date + "T00:00:00");
-  for (const b of blocks.filter((x) => x.recurring)) {
-    const blockStart = new Date(b.date + "T00:00:00");
-    if (target < blockStart) continue;
-    if (target.getDay() !== blockStart.getDay()) continue;
-    if (intervalsOverlap(b.time, b.duration_minutes, time, duration)) {
+    if (b.date === date) {
       return {
         conflict: true,
         type: "block",
@@ -101,6 +107,36 @@ export function findSlotConflict(params: {
   }
 
   return { conflict: false };
+}
+
+/**
+ * Given a list of all Zoom-account links, returns which of them are free vs
+ * busy at the given (date, time, duration). Useful for the slot creation UI.
+ */
+export function accountsAvailability(params: {
+  date: string;
+  time: string;
+  duration: number;
+  zoomLinks: string[];
+  slots: Slot[];
+  blocks: Block[];
+  events: Event[];
+  defaultZoom: string;
+}): Record<string, ConflictCheck> {
+  const result: Record<string, ConflictCheck> = {};
+  for (const link of params.zoomLinks) {
+    result[link] = findSlotConflict({
+      date: params.date,
+      time: params.time,
+      duration: params.duration,
+      newSlotZoom: link,
+      slots: params.slots,
+      blocks: params.blocks,
+      events: params.events,
+      defaultZoom: params.defaultZoom,
+    });
+  }
+  return result;
 }
 
 export function isTooSoonForBooking(date: string, time: string): boolean {

@@ -9,6 +9,7 @@ const SPREADSHEET_ID = process.env.GOOGLE_SHEET_ID!;
 const SLOTS_SHEET = "Slots";
 const EVENTS_SHEET = "Events";
 const BLOCKS_SHEET = "Blocks";
+const ZOOM_ACCOUNTS_SHEET = "ZoomAccounts";
 
 // ----- Types -----
 
@@ -43,6 +44,15 @@ export interface Block {
   duration_minutes: number;
   recurring: boolean;
   label: string;
+  created_at: string;
+  zoom_link: string;
+}
+
+export interface ZoomAccount {
+  id: string;
+  email: string;
+  zoom_link: string;
+  notes: string;
   created_at: string;
 }
 
@@ -280,7 +290,7 @@ export async function getBlocks(): Promise<Block[]> {
   try {
     const res = await sheets.spreadsheets.values.get({
       spreadsheetId: SPREADSHEET_ID,
-      range: `${BLOCKS_SHEET}!A2:G`,
+      range: `${BLOCKS_SHEET}!A2:H`,
     });
     const rows = res.data.values || [];
     return rows
@@ -293,6 +303,7 @@ export async function getBlocks(): Promise<Block[]> {
         recurring: row[4] === "TRUE" || row[4] === "true",
         label: row[5] || "",
         created_at: row[6] || "",
+        zoom_link: row[7] || "",
       }));
   } catch (error) {
     console.error("Failed to read Blocks sheet:", error);
@@ -314,7 +325,7 @@ export async function addBlock(block: Omit<Block, "id" | "created_at">): Promise
 
   await sheets.spreadsheets.values.update({
     spreadsheetId: SPREADSHEET_ID,
-    range: `${BLOCKS_SHEET}!A${newRow}:G${newRow}`,
+    range: `${BLOCKS_SHEET}!A${newRow}:H${newRow}`,
     valueInputOption: "RAW",
     requestBody: {
       values: [[
@@ -325,6 +336,7 @@ export async function addBlock(block: Omit<Block, "id" | "created_at">): Promise
         block.recurring ? "TRUE" : "FALSE",
         block.label,
         created_at,
+        block.zoom_link || "",
       ]],
     },
   });
@@ -336,7 +348,7 @@ export async function deleteBlock(blockId: string): Promise<boolean> {
   const sheets = getSheets();
   const res = await sheets.spreadsheets.values.get({
     spreadsheetId: SPREADSHEET_ID,
-    range: `${BLOCKS_SHEET}!A2:G`,
+    range: `${BLOCKS_SHEET}!A2:H`,
   });
 
   const rows = res.data.values || [];
@@ -346,10 +358,82 @@ export async function deleteBlock(blockId: string): Promise<boolean> {
   const sheetRow = rowIndex + 2;
   await sheets.spreadsheets.values.update({
     spreadsheetId: SPREADSHEET_ID,
-    range: `${BLOCKS_SHEET}!A${sheetRow}:G${sheetRow}`,
+    range: `${BLOCKS_SHEET}!A${sheetRow}:H${sheetRow}`,
     valueInputOption: "RAW",
     requestBody: {
-      values: [["", "", "", "", "", "", ""]],
+      values: [["", "", "", "", "", "", "", ""]],
+    },
+  });
+  return true;
+}
+
+// ----- Zoom Accounts -----
+
+export async function getZoomAccounts(): Promise<ZoomAccount[]> {
+  const sheets = getSheets();
+  try {
+    const res = await sheets.spreadsheets.values.get({
+      spreadsheetId: SPREADSHEET_ID,
+      range: `${ZOOM_ACCOUNTS_SHEET}!A2:E`,
+    });
+    const rows = res.data.values || [];
+    return rows
+      .filter((row) => row[0])
+      .map((row) => ({
+        id: row[0] || "",
+        email: row[1] || "",
+        zoom_link: row[2] || "",
+        notes: row[3] || "",
+        created_at: row[4] || "",
+      }));
+  } catch (error) {
+    console.error("Failed to read ZoomAccounts sheet:", error);
+    return [];
+  }
+}
+
+export async function addZoomAccount(account: Omit<ZoomAccount, "id" | "created_at">): Promise<string> {
+  const sheets = getSheets();
+  const id = genId();
+  const created_at = new Date().toISOString();
+
+  const existing = await sheets.spreadsheets.values.get({
+    spreadsheetId: SPREADSHEET_ID,
+    range: `${ZOOM_ACCOUNTS_SHEET}!A:A`,
+  });
+  const rowCount = (existing.data.values || []).length;
+  const newRow = rowCount + 1;
+
+  await sheets.spreadsheets.values.update({
+    spreadsheetId: SPREADSHEET_ID,
+    range: `${ZOOM_ACCOUNTS_SHEET}!A${newRow}:E${newRow}`,
+    valueInputOption: "RAW",
+    requestBody: {
+      values: [[id, account.email, account.zoom_link, account.notes, created_at]],
+    },
+  });
+
+  return id;
+}
+
+export async function deleteZoomAccount(accountId: string): Promise<boolean> {
+  const sheets = getSheets();
+  const res = await sheets.spreadsheets.values.get({
+    spreadsheetId: SPREADSHEET_ID,
+    range: `${ZOOM_ACCOUNTS_SHEET}!A2:E`,
+  });
+
+  const rows = res.data.values || [];
+  const rowIndex = rows.findIndex((row) => row[0] === accountId);
+  if (rowIndex === -1) return false;
+
+  const sheetRow = rowIndex + 2;
+  await sheets.spreadsheets.values.update({
+    spreadsheetId: SPREADSHEET_ID,
+    range: `${ZOOM_ACCOUNTS_SHEET}!A${sheetRow}:E${sheetRow}`,
+    valueInputOption: "RAW",
+    requestBody: {
+      values: [["", "", "", "", ""]],
     },
   });
   return true;
